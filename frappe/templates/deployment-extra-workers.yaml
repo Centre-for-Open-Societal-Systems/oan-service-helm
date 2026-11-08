@@ -1,0 +1,84 @@
+{{/*
+RQ workers for app-specific queues. The worker deployments above are fixed to the
+default, short and long queues.
+
+`bench worker` rejects a queue missing from `workers` in common_site_config.json, so
+the init container waits until the site-config job has written it.
+*/}}
+{{- range .Values.extraWorkers }}
+{{- if not $.Values.siteConfig.enabled }}
+{{- fail "extraWorkers needs siteConfig.enabled: the site-config job registers their queues" }}
+{{- end }}
+{{- $queues := keys .queues | sortAlpha }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "frappe.fullname" $ }}-worker-{{ .name }}
+  labels:
+    {{- include "frappe.labels" $ | nindent 4 }}
+spec:
+  replicas: {{ default 1 .replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "frappe.name" $ }}-worker-{{ .name }}
+      app.kubernetes.io/instance: {{ $.Release.Name }}-worker-{{ .name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "frappe.name" $ }}-worker-{{ .name }}
+        app.kubernetes.io/instance: {{ $.Release.Name }}-worker-{{ .name }}
+        app.kubernetes.io/app: frappe
+    spec:
+      serviceAccountName: {{ template "frappe.serviceAccountName" $ }}
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      initContainers:
+      - name: wait-for-queue-config
+        image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+        imagePullPolicy: {{ $.Values.image.pullPolicy }}
+        workingDir: /home/frappe/frappe-bench/sites
+        command: ["bash", "-c"]
+        args:
+        - |
+          until /home/frappe/frappe-bench/env/bin/python -c 'import json, sys; w = json.load(open("common_site_config.json")).get("workers", {}); sys.exit(not all(q in w for q in sys.argv[1:]))' {{ join " " $queues }}; do
+            echo "waiting for workers config: {{ join "," $queues }}"; sleep 5
+          done
+        volumeMounts:
+        - name: sites-dir
+          mountPath: /home/frappe/frappe-bench/sites
+          {{- if $.Values.persistence.worker.subPath }}
+          subPath: {{ $.Values.persistence.worker.subPath | quote }}
+          {{- end }}
+      containers:
+      - name: worker
+        image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+        imagePullPolicy: {{ $.Values.image.pullPolicy }}
+        args: ["bench", "worker", "--queue", {{ join "," $queues | quote }}]
+        {{- with $.Values.worker.default.envVars }}
+        env:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        resources:
+          {{- toYaml (default dict .resources) | nindent 10 }}
+        securityContext:
+          {{- toYaml $.Values.securityContext | nindent 10 }}
+        volumeMounts:
+        - name: sites-dir
+          mountPath: /home/frappe/frappe-bench/sites
+          {{- if $.Values.persistence.worker.subPath }}
+          subPath: {{ $.Values.persistence.worker.subPath | quote }}
+          {{- end }}
+        - name: logs
+          mountPath: /home/frappe/frappe-bench/logs
+      volumes:
+      - name: sites-dir
+        persistentVolumeClaim:
+          claimName: {{ default (include "frappe.fullname" $) $.Values.persistence.worker.existingClaim }}
+      - name: logs
+        emptyDir: {}
+{{- end }}

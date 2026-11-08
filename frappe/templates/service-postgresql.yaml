@@ -1,0 +1,18 @@
+{{- if (index .Values "postgresql-sts").enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "frappe.fullname" . }}-postgresql-sts
+  labels:
+    {{- include "frappe.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: postgresql
+      protocol: TCP
+      name: postgresql
+  selector:
+    app.kubernetes.io/name: {{ include "frappe.name" . }}-postgresql-sts
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}

@@ -1,0 +1,567 @@
+# Frappe
+
+[Frappe](https://frappe.io) Free and Open Source Enterprise Resource Planning (ERP).
+
+## TL;DR;
+
+For evaluation setup simple in-cluster NFS server to make the `nfs` storage class with RWX capabilities available for use. Make sure you have default storage class (`kubectl get sc`) already on your cluster before creating `nfs` storage class.
+
+```shell
+kubectl create namespace nfs
+helm repo add nfs-ganesha-server-and-external-provisioner https://kubernetes-sigs.github.io/nfs-ganesha-server-and-external-provisioner
+helm upgrade --install -n nfs in-cluster nfs-ganesha-server-and-external-provisioner/nfs-server-provisioner --set 'storageClass.mountOptions={vers=4.1}' --set persistence.enabled=true --set persistence.size=8Gi
+```
+
+Install Frappe using the `nfs` storage class.
+
+```shell
+kubectl create namespace frappe
+helm repo add frappe <HELM_REPO_URL>
+helm upgrade --install frappe-bench --namespace frappe frappe/frappe --set persistence.worker.storageClass=nfs --set mariadb-sts.enabled=true
+```
+
+# Contents
+
+1. [Introduction](#introduction)
+2. [Parameters](#parameters)
+3. [Requirements](#requirements)
+    1. [Storage Class with ReadWriteMany access mode](#storage-class-with-readwritemany-access-mode)
+    2. [Database](#database)
+    3. [Managed Redis](#managed-redis)
+4. [Configuration](#configuration)
+    1. [Existing PVC](#existing-pvc)
+    2. [Existing Storage Class](#existing-storage-class)
+    3. [External Database](#external-database)
+    4. [Using Bitnami Subcharts (Legacy)](#using-bitnami-subcharts-legacy)
+5. [Installation](#installation)
+6. [Generate Additional Resources](#generate-additional-resources)
+    1. [Create new site](#create-new-site)
+    2. [Create multiple new site](#create-multiple-sites)
+    3. [Create Ingress](#create-ingress)
+    4. [Create HTTPRoute](#create-httproute)
+    5. [Backup site](#backup-site)
+    6. [Backup multiple sites](#backup-multiple-sites)
+    7. [Migrate site](#migrate-site)
+    8. [Migrate multiple sites](#migrate-multiple-sites)
+    9. [Drop Site](#drop-site)
+    10.[Drop Multiple sites](#drop-multiple-sites)
+    11. [Configure service hosts](#configure-service-hosts)
+    12. [Fix volume permission](#fix-volume-permission)
+    13. [Clear cache](#clear-cache)
+7. [Uninstall the Chart](#uninstall-the-chart)
+8. [Migrating from Bitnami Subcharts](#migrating-from-bitnami-subcharts)
+
+## Introduction
+
+This chart bootstraps a Frappe deployment on a Kubernetes cluster using the Helm package manager.
+
+## Parameters
+
+The following table lists the configurable parameters of the Frappe chart and their default values.
+
+### frappe
+
+{{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}
+
+Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
+
+{{ template "chart.requirementsHeader" . }}
+
+{{ template "chart.requirementsTable" . }}
+
+{{ template "chart.valuesHeader" . }}
+
+{{ template "chart.valuesTable" . }}
+
+----------------------------------------------
+
+The above parameters map to the env variables defined in frappe_docker. For more information please refer to the frappe_docker images documentation.
+
+## Requirements
+
+### Storage Class with ReadWriteMany access mode
+
+Frappe framework sites are stored in shared volume that needs to be accessed by multiple pods. Read more about Storage Classes. Here are some alternatives available for RWX volumes.
+
+- [AWS EFS](https://docs.aws.amazon.com/eks/latest/userguide/efs-csi.html): Managed shared filesystem by Amazon.
+- [Google Filestore](https://cloud.google.com/filestore): Managed shared filesystem by Google.
+- [AzureFile](https://docs.microsoft.com/en-us/azure/aks/azure-files-dynamic-pv): Managed shared filesystem by Microsoft.
+- [External NFS Server](https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner): Provisioner based on NFS server setup outside cluster. Separately hosted NFS server is needed in this case.
+- [In-cluster NFS Server](https://kubernetes-sigs.github.io/nfs-ganesha-server-and-external-provisioner): Provisioner based on in-cluster NFS server.
+- [More Cloud Native Storage alternatives](https://landscape.cncf.io/card-mode?category=cloud-native-storage&grouping=category): Make sure the `storageclass` has `ReadWriteMany` access mode to use it as storage for sites.
+
+> **Note**: If you are running a single-node cluster or deploying to a specific node using node affinity, you can use ReadWriteOnce (RWO) access mode if your storage class supports it. This is because all pods will be scheduled on the same node, eliminating the need for multi-node access.
+
+### Database
+
+Database is not deployed by default and must be explicitly enabled.
+
+**Note:** Frappe requires MariaDB. PostgreSQL can be used for custom Frappe apps that support it.
+
+Recommended alternatives as per priority:
+
+- [Managed DB](https://github.com/frappe/frappe/wiki/Using-Frappe-with-Amazon-RDS-(or-any-other-DBaaS)): Recommended AWS MariaDB RDS.
+- [Self hosted MariaDB](https://github.com/frappe/frappe/wiki/Setup-MariaDB-Server): Self hosted mariadb server setup for Debian or Ubuntu.
+- [Bitnami Subcharts](https://github.com/bitnami/charts/tree/main/bitnami/mariadb): For backward compatibility, the Bitnami MariaDB and PostgreSQL subcharts can be enabled. See the Using Bitnami Subcharts (Legacy) section.
+
+### Managed Redis
+
+By default, this chart deploys two Valkey instances, one for caching and one for the queue. Valkey is used as an in-memory database, and having it in the cluster provides the lowest latency.
+
+For backward compatibility or other requirements, DragonflyDB or the Bitnami Redis subchart can be enabled instead. See the Using Bitnami Subcharts (Legacy) section.
+
+Alternatively, any managed Redis-compatible service can be used by providing the connection details in your `values.yaml`.
+
+## Configuration
+
+Create a `custom-values.yaml` file to override the default settings. Below are examples for common configurations.
+
+### Existing Storage Class
+
+Make following changes to `custom-values.yaml`:
+
+```yaml
+persistence:
+  worker:
+    storageClass: "rook-cephfs"
+```
+
+Make sure the storage class called `rook-cephfs` is available on the cluster.
+
+### Existing PVC
+
+Make following changes to `custom-values.yaml`:
+
+```yaml
+persistence:
+  worker:
+    existingClaim: existing-sites
+```
+
+Make sure the PVC called `existing-sites` exists in the namespace.
+
+`persistence.logs` also supports `existingClaim`, together with an optional
+`subPath` so logs can share a PVC (e.g. the worker's) without the two
+volumes' contents mixing at the mount root:
+
+```yaml
+persistence:
+  worker:
+    existingClaim: existing-sites
+    subPath: sites-data
+  logs:
+    enabled: true
+    existingClaim: existing-sites
+    subPath: logs-data
+```
+
+Set `subPath` on both volumes when they share a PVC; otherwise the one without
+a `subPath` mounts the PVC root and still sees the other's directory.
+
+> **Warning:** setting `persistence.worker.subPath` on a claim that already holds
+> sites at its root mounts only that subdirectory, so the existing sites and
+> their configuration are no longer visible to the workloads. Move the existing
+> data into the subdirectory before switching.
+
+When a `subPath` is set, an init container (`persistence.subPathPermissions.enabled`,
+default `true`) creates the directory and sets its ownership before the main
+containers start.
+
+### Access Modes
+
+Make following changes to custom-values.yaml:
+
+```yaml
+persistence:
+  worker:
+    accessModes:
+      - ReadWriteMany  # default mode
+```
+
+You can configure this to use ReadWriteOnce (RWO) if you are running a single-node cluster or deploying to a specific node using node affinity.
+
+### External Database
+
+To use an external database (like Amazon RDS), disable the built-in and subchart databases and provide the connection details.
+
+```yaml
+# Disable all in-cluster databases
+mariadb-sts:
+  enabled: false
+postgresql-sts:
+  enabled: false
+mariadb-subchart:
+  enabled: false
+postgresql-subchart:
+  enabled: false
+
+dbHost: "1.2.3.4"
+dbPort: "3306"
+dbRootUser: "admin"
+# Use dbExistingSecret for production environments
+dbExistingSecret: "my-external-db-secret"
+dbExistingSecretPasswordKey: "password"
+```
+
+### Using Bitnami Subcharts (Legacy)
+
+> **Note for Upgrading Users**: If you are upgrading from a previous version where you used the default Bitnami subchart, you must now explicitly set `mariadb-subchart: true` (or `mariadb.enabled: true` for backward compatibility) in your `custom-values.yaml` to prevent Helm from disabling it during the upgrade.
+
+To use the classic Bitnami subcharts for the database or cache/queue, disable the new built-in components and enable the corresponding subcharts.
+
+```yaml
+# Disable new built-in MariaDB and Valkey
+mariadb-sts:
+  enabled: false
+valkey-cache:
+  enabled: false
+valkey-queue:
+  enabled: false
+# Enable and configure classic Bitnami subcharts
+mariadb-subchart:
+  enabled: true
+  # Pass values to the bitnami/mariadb subchart here
+  # primary:
+  #   persistence:
+  #     size: 10Gi
+
+redis-cache:
+  enabled: true
+  # Pass values to the bitnami/redis subchart here
+
+redis-queue:
+  enabled: true
+  # Pass values to the bitnami/redis subchart here
+```
+
+## Installation
+
+Create namespace for frappe
+
+```shell
+kubectl create namespace frappe
+```
+
+Add helm frappe helm repo
+
+```shell
+helm repo add frappe <HELM_REPO_URL>
+```
+
+Install helm chart and create release
+
+```shell
+helm install frappe-bench -n frappe -f custom-values.yaml frappe/frappe
+```
+
+For rest of the document `frappe-bench` is treated as the helm release name and `custom-values.yaml` file will contain required values to override.
+
+## Generate Additional Resources
+
+These resources can be generated and created along with installation and upgrade of the helm release.
+Instead of doing that we can have better control if we use `helm template` command and generate the required resources. That way we get yaml files that can also be committed to gitops repo. Generating same job multiple times will not cause any problem as the job names will have Unix timestamp.
+
+Following sections discuss different resources that can be created using `helm template` command.
+
+### Create new site
+
+Make following changes to `custom-values.yaml`:
+
+```yaml
+jobs:
+  createSite:
+    enabled: true
+    siteName: "erp.example.com"
+    adminPassword: "secret"
+```
+
+Note: `erp.example.com` must be configured DNS entry and change the `adminPassword` to something more secure.
+
+Generate Job YAML
+
+```shell
+helm template frappe-bench -n frappe frappe/frappe -f custom-values.yaml -s templates/job-create-site.yaml > create-new-site-job.yaml
+```
+
+Create Job resource
+
+```shell
+kubectl apply -f create-new-site-job.yaml
+```
+
+### Create Ingress
+
+Make following changes to `custom-values.yaml`:
+
+```yaml
+ingress:
+  enabled: true
+  ingressName: "erp-example-com"
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    kubernetes.io/ingress.class: nginx
+    kubernetes.io/tls-acme: "true"
+  hosts:
+  - host: erp.example.com
+    paths:
+    - path: /
+      pathType: ImplementationSpecific
+  tls:
+  - secretName: erp-example-com-tls
+    hosts:
+    - erp.example.com
+```
+
+Note:
+
+- `erp.example.com` must be configured DNS entry.
+- Change `annotations` as per requirement.
+- Change `secretName` as per convenience.
+
+Generate Ingress YAML
+
+```shell
+helm template frappe-bench -n frappe frappe/frappe -f custom-values.yaml -s templates/ingress.yaml > ingress.yaml
+```
+
+Create Ingress resource
+
+```shell
+kubectl apply -f ingress.yaml
+```
+
+### Create HTTPRoute
+
+If your cluster is using GatewayAPI, make the following changes to `custom-values.yaml`:
+
+```yaml
+httproute:
+  enabled: true
+  name: "erp-example-com-httproute"
+  annotations: {}
+  parentRefs:
+    - gatewayName: "public-gateway"              # name of your Gateway resource
+      gatewayNamespace: "networking"            # namespace where the Gateway is defined
+      gatewaySectionName: "http"                # listener name (optional), check your gateway requirements
+  hostnames:
+    - "erp.example.com"
+  rules:
+    - matches:
+        - pathType: "PathPrefix"
+          path: "/"
+```
+
+Note:
+
+- A Gateway resource (e.g., `public-gateway`) must already exist in the cluster.
+- `erp.example.com` must be an existing and configured DNS entry.
+- `gatewayNamespace`, `gatewaySectionName`, and other fields can be customized as needed.
+- Change `annotations` as per requirement, if any.
+
+Generate the HTTPRoute YAML
+
+```shell
+helm template frappe-bench -n frappe frappe/frappe -f custom-values.yaml -s templates/httproute.yaml > httproute.yaml
+```
+
+Create HTTPRoute resource
+
+```shell
+kubectl apply -f httproute.yaml
+```
+
+### Backup site
+
+Make following changes to `custom-values.yaml`:
+
+```yaml
+jobs:
+  backup:
+    enabled: true
+    siteName: "erp.example.com"
+    withFiles: true
+    push:
+      enabled: false
+      bucket: "frappe"
+      region: "us-east-1"
+      accessKey: "ACCESSKEY"
+      secretKey: "SECRETKEY"
+      endpoint: http://store.storage.svc.cluster.local
+```
+
+Note:
+
+- Site `erp.example.com` must exist.
+- To push backup to S3, enter S3 credentials and set `jobs.backup.push.enabled` to `true`.
+
+Generate Job YAML
+
+```shell
+helm template frappe-bench -n frappe frappe/frappe -f custom-values.yaml -s templates/job-backup.yaml > job-backup.yaml
+```
+
+Create Job resource
+
+```shell
+kubectl apply -f job-backup.yaml
+```
+
+### Migrate site
+
+Make following changes to `custom-values.yaml`:
+
+```yaml
+jobs:
+  migrate:
+    enabled: true
+    siteName: "erp.example.com"
+```
+
+Note: Site `erp.example.com` must exist.
+
+Generate Job YAML
+
+```shell
+helm template frappe-bench -n frappe frappe/frappe -f custom-values.yaml -s templates/job-migrate-site.yaml > job-migrate-site.yaml
+```
+
+Create Job resource
+
+```shell
+kubectl apply -f job-migrate-site.yaml
+```
+
+### Drop site
+
+Make following changes to `custom-values.yaml`:
+
+```yaml
+jobs:
+  dropSite:
+    enabled: true
+    siteName: "erp.example.com"
+```
+
+Note: Site `erp.example.com` must exist.
+
+Generate Job YAML
+
+```shell
+helm template frappe-bench -n frappe frappe/frappe -f custom-values.yaml -s templates/job-drop-site.yaml > job-drop-site.yaml
+```
+
+Create Job resource
+
+```shell
+kubectl apply -f job-drop-site.yaml
+```
+
+### Configure service hosts
+
+By default this job configures service hosts automatically as per name of the helm release.
+
+To manually set hosts make following changes to `custom-values.yaml`:
+
+```yaml
+# Disable in-cluster databases and caches
+mariadb-sts:
+  enabled: false
+valkey-cache:
+  enabled: false
+valkey-queue:
+  enabled: false
+
+# Configure external services
+dbHost: "db-instance.123456789012.us-east-1.rds.amazonaws.com"
+dbPort: 3306
+
+externalRedis:
+  cache: "redis://redis-cache.7abc2d.0001.usw2.cache.amazonaws.com:6379"
+  queue: "redis://redis-queue.7abc2d.0001.usw2.cache.amazonaws.com:6379"
+
+jobs:
+  configure:
+    enabled: true
+```
+
+Notes:
+
+- Change the hosts as per configuration
+- If `jobs.configure.fixVolume` is set to `true` it will run command as root to change ownership of files and directories in volume.
+
+Generate Job YAML
+
+```shell
+helm template frappe-bench -n frappe frappe/frappe -f custom-values.yaml -s templates/job-configure-bench.yaml > job-configure-bench.yaml
+```
+
+Create Job resource
+
+```shell
+kubectl apply -f job-configure-bench.yaml
+```
+
+### Fix volume permission
+
+Make following changes to `custom-values.yaml`:
+
+```yaml
+jobs:
+  volumePermissions:
+    enabled: true
+```
+
+Generate Job YAML
+
+```shell
+helm template frappe-bench -n frappe frappe/frappe -f custom-values.yaml -s templates/job-fix-volume-permission.yaml > job-fix-volume-permission.yaml
+```
+
+Create Job resource
+
+```shell
+kubectl apply -f job-fix-volume-permission.yaml
+```
+
+### Clear cache
+
+Make following changes to `custom-values.yaml`:
+
+```yaml
+jobs:
+  clearCache:
+    enabled: true
+  # Configure initContainer to wait for rollout
+  initContainer:
+    enabled: true
+    image: alpine/kubectl:1.35.0
+    deployment:
+      name: "gunicorn"
+    timeout: 600s
+```
+
+Generate Job YAML
+
+```shell
+helm template frappe-bench -n frappe frappe/frappe -f custom-values.yaml -s templates/job-clear-cache.yaml > job-clear-cache.yaml
+```
+
+Create Job resource
+
+```shell
+kubectl apply -f job-clear-cache.yaml
+```
+
+## Uninstall the Chart
+
+To uninstall/delete the `frappe-bench` release:
+
+```shell
+helm --namespace frappe delete frappe-bench
+```
+
+The command removes all the Kubernetes components installed by the chart and deletes the release.
+
+## Migrating from Bitnami Subcharts
+
+> **IMPORTANT:** If you are upgrading from a previous version (7.x or older) and relied on the default in-cluster database (Bitnami MariaDB or PostgreSQL), you **must** read this section and the [MIGRATION.md](https://github.com/frappe/helm/blob/main/frappe/MIGRATION.md) guide before performing `helm upgrade`. The new chart version changes the default behavior, and failing to update your `custom-values.yaml` can lead to the accidental uninstallation of your database and potential data loss.
