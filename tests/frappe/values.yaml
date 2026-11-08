@@ -1,0 +1,14 @@
+postgresql-sts:
+  postgresPassword: "changeit"
+
+persistence:
+  worker:
+    storageClass: nfs
+  logs:
+    enabled: false
+
+jobs:
+  configure:
+    fixVolume: false
+  createSite:
+    enabled: false

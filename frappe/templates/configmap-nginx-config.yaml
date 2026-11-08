@@ -1,0 +1,10 @@
+{{- if .Values.nginx.config }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "frappe.fullname" . }}-nginx-config
+  labels:
+    {{- include "frappe.labels" . | nindent 4 }}
+data:
+  default.conf: {{ .Values.nginx.config | quote }}
+{{- end }}

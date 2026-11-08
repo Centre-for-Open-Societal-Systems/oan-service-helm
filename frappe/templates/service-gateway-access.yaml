@@ -1,0 +1,36 @@
+{{- if .Values.gatewayAccess.enabled }}
+{{- $access := .Values.gatewayAccess }}
+{{- range $component, $target := dict "web" "gunicorn" "socket" "socketio" }}
+{{- $svc := index $access $component }}
+{{- if $svc.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $.Release.Name }}-gateway-{{ $component }}
+  labels:
+    {{- include "frappe.labels" $ | nindent 4 }}
+  {{- with $access.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ $access.type }}
+  {{- with $access.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: http
+      port: {{ $svc.port }}
+      targetPort: http
+      protocol: TCP
+      {{- if and $svc.nodePort (ne $access.type "ClusterIP") }}
+      nodePort: {{ $svc.nodePort }}
+      {{- end }}
+  selector:
+    app.kubernetes.io/name: {{ include "frappe.name" $ }}-{{ $target }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}-{{ $target }}
+{{- end }}
+{{- end }}
+{{- end }}

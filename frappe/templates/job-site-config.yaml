@@ -1,0 +1,156 @@
+{{- if .Values.siteConfig.enabled }}
+{{- include "frappe.validateSiteConfig" . }}
+{{/*
+Runs on every install and upgrade. Waits until create-site has installed the last app
+of jobs.createSite.installApps, then writes siteConfig into site_config.json, the
+extraWorkers queues into common_site_config.json and siteConfig.files into the site
+directory. Frappe re-reads both config files within 60 seconds.
+
+`bench set-config --parse` is not used: it parses with ast.literal_eval, which rejects
+JSON true/false/null.
+*/}}
+{{- $site := .Values.jobs.createSite.siteName }}
+{{- $lastApp := "frappe" }}
+{{- with .Values.jobs.createSite.installApps }}{{ $lastApp = last . }}{{ end }}
+{{- $conf := dict }}
+{{- range $key, $value := .Values.siteConfig.values }}
+{{- if not (and (kindIs "string" $value) (eq $value "")) }}
+{{- $_ := set $conf $key $value }}
+{{- end }}
+{{- end }}
+{{- $secretEnv := dict }}
+{{- range $i, $key := keys .Values.siteConfig.secretValues | sortAlpha }}
+{{- $_ := set $secretEnv $key (printf "SECRET_VALUE_%d" $i) }}
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "frappe.fullname" . }}-site-config-{{ now | date "20060102150405" }}
+  labels:
+    {{- include "frappe.labels" . | nindent 4 }}
+spec:
+  backoffLimit: {{ .Values.siteConfig.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.siteConfig.ttlSecondsAfterFinished }}
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ template "frappe.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.siteConfig.seed.enabled }}
+      initContainers:
+      - name: copy-seed
+        image: "{{ .Values.siteConfig.seed.image.repository }}:{{ .Values.siteConfig.seed.image.tag }}"
+        imagePullPolicy: {{ .Values.siteConfig.seed.image.pullPolicy }}
+        command: ["sh", "-c", "cp -r /seed/. /seed-data/"]
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        volumeMounts:
+        - name: seed-data
+          mountPath: /seed-data
+      {{- end }}
+      containers:
+      - name: site-config
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        workingDir: /home/frappe/frappe-bench/sites
+        command: ["bash", "-c"]
+        args:
+        - |
+          set -euo pipefail
+          # site_config.json exists from the start of `bench new-site`; the site is ready
+          # only once the last app is installed.
+          until [ -f "$SITE_NAME/site_config.json" ] && (cd .. && bench --site "$SITE_NAME" list-apps 2>/dev/null) | grep -q '^{{ $lastApp }}'; do
+            echo "waiting for site $SITE_NAME"; sleep 10
+          done
+          {{- range $i, $file := .Values.siteConfig.files }}
+          mkdir -p "$(dirname "$SITE_NAME/{{ $file.path }}")"
+          (umask 077 && printf '%s\n' "$SITE_FILE_{{ $i }}" > "$SITE_NAME/{{ $file.path }}")
+          {{- end }}
+          /home/frappe/frappe-bench/env/bin/python - <<'EOF'
+          import json, os
+
+          def merge(path, data):
+              with open(path) as f:
+                  conf = json.load(f)
+              conf.update(data)
+              with open(path + ".tmp", "w") as f:
+                  json.dump(conf, f, indent=1, sort_keys=True)
+              os.replace(path + ".tmp", path)
+
+          conf = json.loads(os.environ["SITE_CONFIG"])
+          for key, env in json.loads(os.environ["SITE_SECRET_ENV"]).items():
+              if os.environ.get(env):
+                  conf[key] = os.environ[env]
+          merge(os.environ["SITE_NAME"] + "/site_config.json", conf)
+          workers = json.loads(os.environ["WORKERS"])
+          if workers:
+              merge("common_site_config.json", {"workers": workers})
+          EOF
+          echo "site config written for $SITE_NAME"
+          {{- if .Values.siteConfig.migrate }}
+          cd /home/frappe/frappe-bench
+          bench --site "$SITE_NAME" migrate
+          {{- end }}
+          {{- if .Values.siteConfig.seed.enabled }}
+          cd /home/frappe/frappe-bench/sites
+          /home/frappe/frappe-bench/env/bin/python /seed-data/load.py "$SITE_NAME" /seed-data
+          {{- end }}
+        env:
+        - name: SITE_NAME
+          value: {{ $site | quote }}
+        - name: SITE_CONFIG
+          value: {{ toJson $conf | quote }}
+        - name: SITE_SECRET_ENV
+          value: {{ toJson $secretEnv | quote }}
+        - name: WORKERS
+          value: {{ include "frappe.extraWorkersConf" . | quote }}
+        {{- range $key, $env := $secretEnv }}
+        {{- $ref := index $.Values.siteConfig.secretValues $key }}
+        - name: {{ $env }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ $ref.secretName }}
+              key: {{ $ref.secretKey }}
+              optional: {{ default false $ref.optional }}
+        {{- end }}
+        {{- with .Values.siteConfig.seed.userPasswordSecret.name }}
+        - name: SEED_USER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ . }}
+              key: {{ $.Values.siteConfig.seed.userPasswordSecret.key }}
+              optional: true
+        {{- end }}
+        {{- range $i, $file := .Values.siteConfig.files }}
+        - name: SITE_FILE_{{ $i }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ $file.secretName }}
+              key: {{ $file.secretKey }}
+        {{- end }}
+        volumeMounts:
+        - name: sites-dir
+          mountPath: /home/frappe/frappe-bench/sites
+          {{- if .Values.persistence.worker.subPath }}
+          subPath: {{ .Values.persistence.worker.subPath | quote }}
+          {{- end }}
+        {{- if .Values.siteConfig.seed.enabled }}
+        - name: seed-data
+          mountPath: /seed-data
+        {{- end }}
+      volumes:
+      - name: sites-dir
+        persistentVolumeClaim:
+          claimName: {{ default (include "frappe.fullname" .) .Values.persistence.worker.existingClaim }}
+      {{- if .Values.siteConfig.seed.enabled }}
+      - name: seed-data
+        emptyDir: {}
+      {{- end }}
+{{- end }}

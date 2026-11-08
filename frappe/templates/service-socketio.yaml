@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "frappe.fullname" . }}-socketio
+  labels:
+    {{- include "frappe.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.socketio.service.type }}
+  ports:
+    - port: {{ .Values.socketio.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: {{ include "frappe.name" . }}-socketio
+    app.kubernetes.io/instance: {{ .Release.Name }}-socketio

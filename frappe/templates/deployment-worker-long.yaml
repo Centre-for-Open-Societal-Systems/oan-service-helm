@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "frappe.fullname" . }}-worker-l
+  labels:
+    {{- include "frappe.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.worker.long.autoscaling.enabled }}
+  replicas: {{ .Values.worker.long.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "frappe.name" . }}-worker-l
+      app.kubernetes.io/instance: {{ .Release.Name }}-worker-l
+  template:
+    metadata:
+      {{- with .Values.worker.long.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        app.kubernetes.io/name: {{ include "frappe.name" . }}-worker-l
+        app.kubernetes.io/instance: {{ .Release.Name }}-worker-l
+        app.kubernetes.io/app: frappe
+    spec:
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      serviceAccountName: {{ template "frappe.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+    {{- $subPathInit := include "frappe.subPathInitContainer" (dict "root" . "logs" true) }}
+    {{- if or .Values.worker.long.initContainers $subPathInit }}
+      initContainers:
+        {{- if $subPathInit }}
+        {{- $subPathInit | trim | nindent 8 }}
+        {{- end }}
+        {{- with .Values.worker.long.initContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    {{- end }}
+      containers:
+        - name: long
+          {{- if .Values.worker.long.envVars }}
+          env:
+            {{- toYaml .Values.worker.long.envVars | nindent 12 }}
+          {{- end }}
+          args:
+          - bench
+          - worker
+          - --queue
+          - long,default,short
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          livenessProbe:
+            {{- if .Values.worker.long.livenessProbe.override }}
+            {{- toYaml .Values.worker.long.livenessProbe.probe | nindent 12 }}
+            {{- else }}
+            {{ tpl .Values.worker.healthProbe . | nindent 12 }}
+            {{- end }}
+          readinessProbe:
+            {{- if .Values.worker.long.readinessProbe.override }}
+            {{- toYaml .Values.worker.long.readinessProbe.probe | nindent 12 }}
+            {{- else }}
+            {{ tpl .Values.worker.healthProbe . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.worker.long.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+          - name: sites-dir
+            mountPath: /home/frappe/frappe-bench/sites
+            {{- if .Values.persistence.worker.subPath }}
+            subPath: {{ .Values.persistence.worker.subPath | quote }}
+            {{- end }}
+          - name: logs
+            mountPath: /home/frappe/frappe-bench/logs
+            {{- if .Values.persistence.logs.subPath }}
+            subPath: {{ .Values.persistence.logs.subPath | quote }}
+            {{- end }}
+      {{- if .Values.worker.long.sidecars }}
+        {{- toYaml .Values.worker.long.sidecars | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: sites-dir
+          {{- if .Values.persistence.worker.enabled }}
+          persistentVolumeClaim:
+            {{- if .Values.persistence.worker.existingClaim }}
+            claimName: {{ .Values.persistence.worker.existingClaim }}
+            {{- else }}
+            claimName: {{ template "frappe.fullname" . }}
+            {{- end }}
+            readOnly: false
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: logs
+          {{- if .Values.persistence.logs.enabled }}
+          persistentVolumeClaim:
+            {{- if .Values.persistence.logs.existingClaim }}
+            claimName: {{ .Values.persistence.logs.existingClaim }}
+            {{- else }}
+            claimName: {{ template "frappe.fullname" . }}-logs
+            {{- end }}
+            readOnly: false
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- with .Values.worker.long.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.worker.long.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.worker.long.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
