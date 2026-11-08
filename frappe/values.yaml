@@ -754,10 +754,6 @@ siteConfig:
   values: {}
   # site_config.json keys read from Secrets.
   secretValues: {}
-  #   openg2p_password:
-  #     secretName: my-secret
-  #     secretKey: password
-  #     optional: true
   # Files written under the site directory from Secrets.
   files: []
   # - path: keys/jwt_v1.pem
