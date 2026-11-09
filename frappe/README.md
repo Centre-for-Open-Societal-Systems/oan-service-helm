@@ -61,7 +61,7 @@ The following table lists the configurable parameters of the Frappe chart and th
 
 ### frappe
 
-![Version: 8.0.83](https://img.shields.io/badge/Version-8.0.83-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v16.37.0](https://img.shields.io/badge/AppVersion-v16.37.0-informational?style=flat-square)
+![Version: 8.0.91-oan.1](https://img.shields.io/badge/Version-8.0.91--oan.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v16.54.0](https://img.shields.io/badge/AppVersion-v16.54.0-informational?style=flat-square)
 
 Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 
@@ -91,15 +91,6 @@ Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 | externalRedis.queue | string | `""` |  |
 | extraWorkers | list | `[]` |  |
 | fullnameOverride | string | `""` |  |
-| httproute.annotations | object | `{}` |  |
-| httproute.enabled | bool | `false` |  |
-| httproute.hostnames[0] | string | `"erp.example.com"` |  |
-| httproute.name | string | `""` |  |
-| httproute.parentRefs[0].gatewayName | string | `"public-gateway"` |  |
-| httproute.parentRefs[0].gatewayNamespace | string | `"networking"` |  |
-| httproute.parentRefs[0].gatewaySectionName | string | `"http"` |  |
-| httproute.rules[0].matches[0].path | string | `"/"` |  |
-| httproute.rules[0].matches[0].pathType | string | `"PathPrefix"` |  |
 | gatewayAccess.annotations | object | `{}` |  |
 | gatewayAccess.enabled | bool | `false` |  |
 | gatewayAccess.loadBalancerSourceRanges | list | `[]` |  |
@@ -110,9 +101,18 @@ Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 | gatewayAccess.web.enabled | bool | `true` |  |
 | gatewayAccess.web.nodePort | string | `nil` |  |
 | gatewayAccess.web.port | int | `8000` |  |
+| httproute.annotations | object | `{}` |  |
+| httproute.enabled | bool | `false` |  |
+| httproute.hostnames[0] | string | `"erp.example.com"` |  |
+| httproute.name | string | `""` |  |
+| httproute.parentRefs[0].gatewayName | string | `"public-gateway"` |  |
+| httproute.parentRefs[0].gatewayNamespace | string | `"networking"` |  |
+| httproute.parentRefs[0].gatewaySectionName | string | `"http"` |  |
+| httproute.rules[0].matches[0].path | string | `"/"` |  |
+| httproute.rules[0].matches[0].pathType | string | `"PathPrefix"` |  |
 | image.pullPolicy | string | `"IfNotPresent"` |  |
 | image.repository | string | `""` |  |
-| image.tag | string | `"v16.37.0"` |  |
+| image.tag | string | `"v16.54.0"` |  |
 | imagePullSecrets | list | `[]` |  |
 | ingress.annotations | object | `{}` |  |
 | ingress.enabled | bool | `false` |  |
@@ -329,7 +329,8 @@ Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 | socketio.autoscaling.minReplicas | int | `1` |  |
 | socketio.autoscaling.targetCPU | int | `75` |  |
 | socketio.autoscaling.targetMemory | int | `75` |  |
-| socketio.envVars | list | `[{"name":"FRAPPE_STREAM_LOGGING","value":"1"}]` |  |
+| socketio.envVars[0].name | string | `"FRAPPE_STREAM_LOGGING"` |  |
+| socketio.envVars[0].value | string | `"1"` |  |
 | socketio.initContainers | list | `[]` |  |
 | socketio.livenessProbe.initialDelaySeconds | int | `5` |  |
 | socketio.livenessProbe.periodSeconds | int | `10` |  |
@@ -357,7 +358,8 @@ Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 | worker.default.autoscaling.minReplicas | int | `1` |  |
 | worker.default.autoscaling.targetCPU | int | `75` |  |
 | worker.default.autoscaling.targetMemory | int | `75` |  |
-| worker.default.envVars | list | `[{"name":"FRAPPE_STREAM_LOGGING","value":"1"}]` |  |
+| worker.default.envVars[0].name | string | `"FRAPPE_STREAM_LOGGING"` |  |
+| worker.default.envVars[0].value | string | `"1"` |  |
 | worker.default.initContainers | list | `[]` |  |
 | worker.default.livenessProbe.override | bool | `false` |  |
 | worker.default.livenessProbe.probe | object | `{}` |  |
@@ -379,7 +381,8 @@ Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 | worker.gunicorn.autoscaling.minReplicas | int | `1` |  |
 | worker.gunicorn.autoscaling.targetCPU | int | `75` |  |
 | worker.gunicorn.autoscaling.targetMemory | int | `75` |  |
-| worker.gunicorn.envVars | list | `[{"name":"FRAPPE_STREAM_LOGGING","value":"1"}]` |  |
+| worker.gunicorn.envVars[0].name | string | `"FRAPPE_STREAM_LOGGING"` |  |
+| worker.gunicorn.envVars[0].value | string | `"1"` |  |
 | worker.gunicorn.initContainers | list | `[]` |  |
 | worker.gunicorn.livenessProbe.initialDelaySeconds | int | `5` |  |
 | worker.gunicorn.livenessProbe.periodSeconds | int | `10` |  |
@@ -402,7 +405,8 @@ Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 | worker.long.autoscaling.minReplicas | int | `1` |  |
 | worker.long.autoscaling.targetCPU | int | `75` |  |
 | worker.long.autoscaling.targetMemory | int | `75` |  |
-| worker.long.envVars | list | `[{"name":"FRAPPE_STREAM_LOGGING","value":"1"}]` |  |
+| worker.long.envVars[0].name | string | `"FRAPPE_STREAM_LOGGING"` |  |
+| worker.long.envVars[0].value | string | `"1"` |  |
 | worker.long.initContainers | list | `[]` |  |
 | worker.long.livenessProbe.override | bool | `false` |  |
 | worker.long.livenessProbe.probe | object | `{}` |  |
@@ -415,7 +419,8 @@ Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 | worker.long.sidecars | list | `[]` |  |
 | worker.long.tolerations | list | `[]` |  |
 | worker.scheduler.affinity | object | `{}` |  |
-| worker.scheduler.envVars | list | `[{"name":"FRAPPE_STREAM_LOGGING","value":"1"}]` |  |
+| worker.scheduler.envVars[0].name | string | `"FRAPPE_STREAM_LOGGING"` |  |
+| worker.scheduler.envVars[0].value | string | `"1"` |  |
 | worker.scheduler.initContainers | list | `[]` |  |
 | worker.scheduler.livenessProbe.override | bool | `false` |  |
 | worker.scheduler.livenessProbe.probe | object | `{}` |  |
@@ -433,7 +438,8 @@ Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 | worker.short.autoscaling.minReplicas | int | `1` |  |
 | worker.short.autoscaling.targetCPU | int | `75` |  |
 | worker.short.autoscaling.targetMemory | int | `75` |  |
-| worker.short.envVars | list | `[{"name":"FRAPPE_STREAM_LOGGING","value":"1"}]` |  |
+| worker.short.envVars[0].name | string | `"FRAPPE_STREAM_LOGGING"` |  |
+| worker.short.envVars[0].value | string | `"1"` |  |
 | worker.short.initContainers | list | `[]` |  |
 | worker.short.livenessProbe.override | bool | `false` |  |
 | worker.short.livenessProbe.probe | object | `{}` |  |
