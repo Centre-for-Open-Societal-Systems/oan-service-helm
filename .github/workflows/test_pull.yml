@@ -24,7 +24,7 @@ jobs:
         with:
           extra_args: --all-files
 
-      - name: Run Tests
-        run: |
-          helm lint frappe -f tests/frappe/values.yaml
-          docker compose -p frappe-helm -f tests/compose.yaml run tests
+      # The upstream k3s install test (tests/compose.yaml) is not run: it installs the chart
+      # without an application image, which the OAN chart leaves to each environment.
+      - name: Lint the chart
+        run: helm lint frappe -f tests/frappe/values.yaml
