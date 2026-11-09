@@ -3,7 +3,7 @@ name: frappe
 description: Kubernetes Helm Chart for the latest stable Frappe branch
 icon: ""
 type: application
-version: 8.0.91
+version: 8.0.91-oan.1
 appVersion: v16.54.0
 dependencies:
 - name: mariadb
