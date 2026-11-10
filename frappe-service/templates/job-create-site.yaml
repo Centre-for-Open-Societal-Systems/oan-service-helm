@@ -1,22 +1,22 @@
-{{- if and .Values.jobs.createMultipleSites.enabled (not .Values.jobs.createSite.enabled) }}
+{{- if .Values.jobs.createSite.enabled }}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  {{- if .Values.jobs.createMultipleSites.jobName }}
-  name: {{ .Values.jobs.createMultipleSites.jobName }}
+  {{- if .Values.jobs.createSite.jobName }}
+  name: {{ .Values.jobs.createSite.jobName }}
   {{- else }}
-  name: {{ template "frappe.fullname" . }}-new-sites-{{ now | date "20060102150405" }}
+  name: {{ template "frappe.fullname" . }}-new-site-{{ now | date "20060102150405" }}
   {{- end }}
   labels:
     {{- include "frappe.labels" . | nindent 4 }}
   annotations:
-{{- with .Values.jobs.createMultipleSites.annotations }}
+{{- with .Values.jobs.createSite.annotations }}
 {{- range $key, $value := . }}
     {{ $key }}: {{ $value | quote }}
 {{- end }}
 {{- end }}
 spec:
-  backoffLimit: {{ .Values.jobs.createMultipleSites.backoffLimit }}
+  backoffLimit: {{ .Values.jobs.createSite.backoffLimit }}
   template:
     spec:
     {{- with .Values.imagePullSecrets }}
@@ -52,11 +52,7 @@ spec:
               echo "Database is reachable.";
           env:
             - name: "DB_HOST"
-              {{- if or .Values.mariadb.enabled (get .Values "mariadb-subchart").enabled }}
-              value: {{ .Release.Name }}-mariadb-subchart
-              {{- else if or .Values.postgresql.enabled (get .Values "postgresql-subchart").enabled }}
-              value: {{ .Release.Name }}-postgresql-subchart
-              {{- else if (get .Values "mariadb-sts").enabled }}
+              {{- if (get .Values "mariadb-sts").enabled }}
               value: {{ include "frappe.fullname" . }}-mariadb-sts
               {{- else if (get .Values "postgresql-sts").enabled }}
               value: {{ include "frappe.fullname" . }}-postgresql-sts
@@ -64,19 +60,15 @@ spec:
               value: "{{ .Values.dbHost }}"
               {{- end }}
             - name: "DB_PORT"
-              {{- if or .Values.mariadb.enabled (get .Values "mariadb-subchart").enabled }}
-              value: "3306"
-              {{- else if or .Values.postgresql.enabled (get .Values "postgresql-subchart").enabled }}
-              value: "5432"
-              {{- else if .Values.dbPort }}
+              {{- if .Values.dbPort }}
               value: {{ .Values.dbPort | quote }}
-              {{- else if eq .Values.jobs.createMultipleSites.dbType "mariadb" }}
+              {{- else if eq .Values.jobs.createSite.dbType "mariadb" }}
               value: "3306"
-              {{- else if has .Values.jobs.createMultipleSites.dbType (list "postgres" "postgresql") }}
+              {{- else if has .Values.jobs.createSite.dbType (list "postgres" "postgresql") }}
               value: "5432"
               {{- end }}
           resources:
-            {{- toYaml .Values.jobs.createMultipleSites.resources | nindent 12 }}
+            {{- toYaml .Values.jobs.createSite.resources | nindent 12 }}
           securityContext:
             {{- toYaml $.Values.securityContext | nindent 12 }}
           volumeMounts:
@@ -94,37 +86,30 @@ spec:
           - >
             set -x;
 
-            {{- range $site := .Values.jobs.createMultipleSites.sites }}
-
-            bench_output=$(bench new-site {{ $site.name }} --no-mariadb-socket --db-type=${DB_TYPE} --db-host=${DB_HOST} --db-port=${DB_PORT} --admin-password=${ADMIN_PASSWORD} --mariadb-root-username=${DB_ROOT_USER} --mariadb-root-password=${DB_ROOT_PASSWORD}{{- if $.Values.jobs.createMultipleSites.forceCreate }} --force{{- end }}{{- if $site.installApps }}{{- range $site.installApps }} --install-app={{ . }}{{- end }}{{- end }} | tee /dev/stderr);
+            bench_output=$(bench new-site ${SITE_NAME} --no-mariadb-socket --db-type=${DB_TYPE} --db-host=${DB_HOST} --db-port=${DB_PORT} --admin-password=${ADMIN_PASSWORD} --mariadb-root-username=${DB_ROOT_USER} --mariadb-root-password=${DB_ROOT_PASSWORD} {{- if .Values.jobs.createSite.installApps }} {{- range .Values.jobs.createSite.installApps }} --install-app={{ . }} {{- end }} {{- end }} {{- if .Values.jobs.createSite.forceCreate }} --force {{- end }} | tee /dev/stderr);
 
             bench_exit_status=$?;
 
             if [ $bench_exit_status -ne 0 ]; then
-                if [[ "$bench_output" == *"already exists"* ]]; then
-                    echo "Site {{ $site.name }} already exists, continuing...";
+                # Don't consider the case "site already exists" an error.
+                if [[ $bench_output == *"already exists"* ]]; then
+                    echo "Site already exists, continuing...";
                 else
-                    echo "An error occurred while creating site {{ $site.name }}";
+                    echo "An error occurred in bench new-site: $bench_output"
                     exit $bench_exit_status;
                 fi
-            fi;
-
-            {{- end }}
+            fi
 
             set -e;
-            rm -f currentsite.txt;
 
+            rm -f currentsite.txt
         env:
           - name: "SITE_NAME"
-            value: "{{ .Values.jobs.createMultipleSites.siteName }}"
+            value: "{{ .Values.jobs.createSite.siteName }}"
           - name: "DB_TYPE"
-            value: {{ .Values.jobs.createMultipleSites.dbType }}
+            value: {{ .Values.jobs.createSite.dbType }}
           - name: DB_HOST
-            {{- if or .Values.mariadb.enabled (get .Values "mariadb-subchart").enabled }}
-            value: {{ .Release.Name }}-mariadb-subchart
-            {{- else if or .Values.postgresql.enabled (get .Values "postgresql-subchart").enabled }}
-            value: {{ .Release.Name }}-postgresql-subchart
-            {{- else if (get .Values "mariadb-sts").enabled }}
+            {{- if (get .Values "mariadb-sts").enabled }}
             value: {{ include "frappe.fullname" . }}-mariadb-sts
             {{- else if (get .Values "postgresql-sts").enabled }}
             value: {{ include "frappe.fullname" . }}-postgresql-sts
@@ -132,15 +117,11 @@ spec:
             value: "{{ .Values.dbHost }}"
             {{- end }}
           - name: "DB_PORT"
-            {{- if or .Values.mariadb.enabled (get .Values "mariadb-subchart").enabled }}
-            value: "3306"
-            {{- else if or .Values.postgresql.enabled (get .Values "postgresql-subchart").enabled }}
-            value: "5432"
-            {{- else if .Values.dbPort }}
+            {{- if .Values.dbPort }}
             value: {{ .Values.dbPort | quote }}
-            {{- else if eq .Values.jobs.createMultipleSites.dbType "mariadb" }}
+            {{- else if eq .Values.jobs.createSite.dbType "mariadb" }}
             value: "3306"
-            {{- else if has .Values.jobs.createMultipleSites.dbType (list "postgres" "postgresql") }}
+            {{- else if has .Values.jobs.createSite.dbType (list "postgres" "postgresql") }}
             value: "5432"
             {{- end }}
           - name: "DB_ROOT_USER"
@@ -156,16 +137,6 @@ spec:
               secretKeyRef:
                 key: postgres-password
                 name: {{ template "frappe.fullname" . }}
-            {{- else if or .Values.mariadb.enabled (get .Values "mariadb-subchart").enabled }}
-            valueFrom:
-              secretKeyRef:
-                name: {{ .Release.Name }}-mariadb-subchart
-                key: mariadb-root-password
-            {{- else if or .Values.postgresql.enabled (get .Values "postgresql-subchart").enabled }}
-            valueFrom:
-              secretKeyRef:
-                name: {{ .Release.Name }}-postgresql-subchart
-                key: postgres-password
             {{- else if .Values.dbExistingSecret }}
             valueFrom:
               secretKeyRef:
@@ -178,16 +149,16 @@ spec:
                 name: {{ template "frappe.fullname" . }}
             {{- end }}
           - name: "ADMIN_PASSWORD"
-            {{- if .Values.jobs.createMultipleSites.adminExistingSecret }}
+            {{- if .Values.jobs.createSite.adminExistingSecret }}
             valueFrom:
               secretKeyRef:
-                key: {{ .Values.jobs.createMultipleSites.adminExistingSecretKey }}
-                name: {{ .Values.jobs.createMultipleSites.adminExistingSecret }}
+                key: {{ .Values.jobs.createSite.adminExistingSecretKey }}
+                name: {{ .Values.jobs.createSite.adminExistingSecret }}
             {{- else}}
-            value: {{ required "jobs.createMultipleSites.adminPassword or adminExistingSecret is required" .Values.jobs.createMultipleSites.adminPassword | quote }}
+            value: {{ required "jobs.createSite.adminPassword or adminExistingSecret is required" .Values.jobs.createSite.adminPassword | quote }}
             {{- end }}
         resources:
-          {{- toYaml .Values.jobs.createMultipleSites.resources | nindent 10 }}
+          {{- toYaml .Values.jobs.createSite.resources | nindent 10 }}
         securityContext:
           {{- toYaml $.Values.securityContext | nindent 10 }}
         volumeMounts:
@@ -227,15 +198,15 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
-      {{- with .Values.jobs.createMultipleSites.nodeSelector }}
+      {{- with .Values.jobs.createSite.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.jobs.createMultipleSites.affinity }}
+      {{- with .Values.jobs.createSite.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.jobs.createMultipleSites.tolerations }}
+      {{- with .Values.jobs.createSite.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}

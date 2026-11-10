@@ -1,5 +1,5 @@
 charts:
-  - name: frappe
+  - name: frappe-service
     resetTag: v1
     resetVersion: 1.0.0
     repo:

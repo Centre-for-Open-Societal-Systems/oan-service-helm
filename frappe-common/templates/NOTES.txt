@@ -1,0 +1,28 @@
+Frappe database release deployed
+
+Release Name: {{ include "frappe.fullname" . }}
+{{- $mariadbSub := or (dig "mariadb" "enabled" false .Values.AsMap) (index .Values "mariadb-subchart").enabled }}
+{{- $postgresSub := or (dig "postgresql" "enabled" false .Values.AsMap) (index .Values "postgresql-subchart").enabled }}
+
+Database endpoints (use these as dbHost/dbPort in the frappe-service chart):
+{{- if (index .Values "mariadb-sts").enabled }}
+  MariaDB (StatefulSet):     {{ include "frappe.fullname" . }}-mariadb-sts.{{ .Release.Namespace }}.svc:3306
+{{- end }}
+{{- if (index .Values "postgresql-sts").enabled }}
+  PostgreSQL (StatefulSet):  {{ include "frappe.fullname" . }}-postgresql-sts.{{ .Release.Namespace }}.svc:5432
+{{- end }}
+{{- if $mariadbSub }}
+  MariaDB (Bitnami):         {{ .Release.Name }}-mariadb-subchart.{{ .Release.Namespace }}.svc:3306
+{{- end }}
+{{- if $postgresSub }}
+  PostgreSQL (Bitnami):      {{ .Release.Name }}-postgresql-subchart.{{ .Release.Namespace }}.svc:5432
+{{- end }}
+{{- if not (or (index .Values "mariadb-sts").enabled (index .Values "postgresql-sts").enabled $mariadbSub $postgresSub) }}
+  None. Enable one of mariadb-sts, postgresql-sts, mariadb-subchart or postgresql-subchart.
+{{- end }}
+{{- if or $mariadbSub $postgresSub }}
+
+DEPRECATION WARNING:
+You are using a legacy Bitnami database subchart (MariaDB or PostgreSQL).
+Plan a migration to mariadb-sts or postgresql-sts; see MIGRATION.md.
+{{- end }}

@@ -29,12 +29,26 @@ spec:
         - name: postgresql
           image: "{{ (index .Values "postgresql-sts").image.repository }}:{{ (index .Values "postgresql-sts").image.tag }}"
           imagePullPolicy: {{ (index .Values "postgresql-sts").image.pullPolicy }}
+          {{- $pg := index .Values "postgresql-sts" }}
+          {{- if or $pg.maxConnections $pg.extraArgs }}
+          # Arguments starting with "-" are passed to postgres by the image entrypoint.
+          args:
+            {{- with $pg.maxConnections }}
+            - -c
+            - {{ printf "max_connections=%v" . | quote }}
+            {{- end }}
+            {{- range $pg.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          {{- end }}
           env:
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "frappe.fullname" . }}
                   key: postgres-password
+            - name: POSTGRES_USER
+              value: {{ (index .Values "postgresql-sts").postgresUser | default "postgres" | quote }}
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           ports:
@@ -46,13 +60,22 @@ spec:
               port: 5432
             initialDelaySeconds: 30
             periodSeconds: 10
+          # pg_isready over TCP: the image's first-boot init server listens on the
+          # unix socket only, so the pod turns ready once the real server accepts
+          # connections, not when the port first opens.
           readinessProbe:
-            tcpSocket:
-              port: 5432
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -h 127.0.0.1 -p 5432 -U "$POSTGRES_USER"
             initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 5
+          {{- with (index .Values "postgresql-sts").resources }}
           resources:
-            {{- toYaml (index .Values "postgresql-sts").resources | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data

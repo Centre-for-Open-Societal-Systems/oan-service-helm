@@ -1,0 +1,51 @@
+# Frappe Common
+
+Database chart for Frappe. It deploys **only** the database used by the `frappe-service` chart: MariaDB or PostgreSQL. Frappe itself (gunicorn, workers, nginx, socketio, site jobs) and Redis/Valkey/Dragonfly are deployed by `frappe-service`.
+
+## Database options
+
+Enable exactly one of:
+
+| Option | Values key | Service (port) |
+|--------|------------|----------------|
+| MariaDB StatefulSet | `mariadb-sts.enabled: true` + `mariadb-sts.rootPassword` | `<fullname>-mariadb-sts` (3306) |
+| PostgreSQL StatefulSet (default) | `postgresql-sts.enabled: true` + `postgresql-sts.postgresPassword` | `<fullname>-postgresql-sts` (5432) |
+| Bitnami MariaDB subchart (legacy) | `mariadb-subchart.enabled: true` | `<release>-mariadb-subchart` (3306) |
+| Bitnami PostgreSQL subchart (legacy) | `postgresql-subchart.enabled: true` | `<release>-postgresql-subchart` (5432) |
+
+The StatefulSet passwords are stored in the `<fullname>` Secret under `mariadb-root-password` / `postgres-password`. Bitnami subchart values are passed through under `mariadb-subchart:` / `postgresql-subchart:`. `<fullname>` is the release name when it contains `frappe-common`, otherwise `<release>-frappe-common`. The release notes print the endpoint to use.
+
+## Installation
+
+```shell
+helm upgrade --install frappe-common ./frappe-common -n frappe \
+  --set postgresql-sts.postgresPassword=<password>
+```
+
+Then point `frappe-service` at it as an external database (disable its own `mariadb-sts`/`postgresql-sts`):
+
+```yaml
+postgresql-sts:
+  enabled: false
+dbHost: frappe-common-postgresql-sts.frappe.svc
+dbPort: "5432"
+dbRootUser: postgres
+dbExistingSecret: frappe-common
+dbExistingSecretPasswordKey: postgres-password
+```
+
+For moving from the Bitnami subcharts to the StatefulSets, see [MIGRATION.md](MIGRATION.md).
+
+## Parameters
+
+{{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}
+
+{{ template "chart.description" . }}
+
+{{ template "chart.requirementsHeader" . }}
+
+{{ template "chart.requirementsTable" . }}
+
+{{ template "chart.valuesHeader" . }}
+
+{{ template "chart.valuesTable" . }}

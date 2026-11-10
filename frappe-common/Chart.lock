@@ -1,0 +1,9 @@
+dependencies:
+- name: mariadb
+  repository: https://charts.bitnami.com/bitnami
+  version: 11.5.7
+- name: postgresql
+  repository: https://charts.bitnami.com/bitnami
+  version: 12.1.6
+digest: sha256:5a7fc4f05258d9560bd837ca2c68e2775b3d56bf3564fb61ca32f0d01ba51217
+generated: "2026-11-10T00:00:00+05:30"

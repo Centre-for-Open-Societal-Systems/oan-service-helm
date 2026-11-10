@@ -11,7 +11,7 @@ from ruamel.yaml import YAML
 
 def main():
     args = parse_args()
-    values_file = f"{os.getcwd()}/frappe/values.yaml"
+    values_file = f"{os.getcwd()}/frappe-service/values.yaml"
     values_dict = get_yaml_dict(values_file)
     values_frappe_version = values_dict["image"]["tag"][1:]
     frappe_version = git_version("frappe", args.version)
@@ -118,7 +118,7 @@ def save_yaml_file(data, file_name):
 
 def update_chart(frappe_version, bump_type):
     # Update Chart.yaml
-    chart_file = f"{os.getcwd()}/frappe/Chart.yaml"
+    chart_file = f"{os.getcwd()}/frappe-service/Chart.yaml"
     chart_dict = get_yaml_dict(chart_file)
 
     chart_dict["appVersion"] = frappe_version
@@ -137,7 +137,7 @@ def update_chart(frappe_version, bump_type):
 
 def update_values(frappe_version):
     # Update values.yaml
-    values_file = f"{os.getcwd()}/frappe/values.yaml"
+    values_file = f"{os.getcwd()}/frappe-service/values.yaml"
     values_dict = get_yaml_dict(values_file)
     values_dict["image"]["tag"] = frappe_version
     save_yaml_file(values_dict, values_file)

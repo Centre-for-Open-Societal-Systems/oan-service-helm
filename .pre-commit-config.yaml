@@ -16,7 +16,7 @@ repos:
     hooks:
       - id: helm-docs-built
         args:
-          - --template-files=./README.md.gotmpl
+          - --template-files=README.md.gotmpl
 
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.1
@@ -27,4 +27,4 @@ repos:
           - -L
           - 'ro,aks'
 
-exclude: ^(env/.*|frappe/Chart.yaml)
+exclude: ^(env/.*|frappe-(service|common)/Chart.yaml)

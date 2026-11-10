@@ -1,0 +1,88 @@
+{{- if (index .Values "mariadb-sts").enabled }}
+{{- required "mariadb-sts.rootPassword is required" (index .Values "mariadb-sts").rootPassword | trunc 0 }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "frappe.fullname" . }}-mariadb-sts
+  labels:
+    {{- include "frappe.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "frappe.name" . }}-mariadb-sts
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  serviceName: {{ include "frappe.fullname" . }}-mariadb-sts
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "frappe.name" . }}-mariadb-sts
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: mariadb
+          image: "{{ (index .Values "mariadb-sts").image.repository }}:{{ (index .Values "mariadb-sts").image.tag }}"
+          imagePullPolicy: {{ (index .Values "mariadb-sts").image.pullPolicy }}
+          env:
+            - name: MARIADB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "frappe.fullname" . }}
+                  key: mariadb-root-password
+          ports:
+            - name: mysql
+              containerPort: 3306
+              protocol: TCP
+          livenessProbe:
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          # mariadb-admin ping exits 0 once the server answers, even if the login is
+          # refused, so no credentials are needed. The image's first-boot init server
+          # runs with --skip-networking, so this stays not-ready until it is done.
+          readinessProbe:
+            exec:
+              command:
+                - mariadb-admin
+                - ping
+                - -h
+                - 127.0.0.1
+                - --silent
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          {{- with (index .Values "mariadb-sts").resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+            {{- if (index .Values "mariadb-sts").myCnf }}
+            - name: config
+              mountPath: /etc/mysql/conf.d/my.cnf
+              subPath: my.cnf
+            {{- end }}
+      volumes:
+        {{- if (index .Values "mariadb-sts").myCnf }}
+        - name: config
+          configMap:
+            name: {{ include "frappe.fullname" . }}-mariadb-sts
+        {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: {{ (index .Values "mariadb-sts").persistence.storageClass }}
+        resources:
+          requests:
+            storage: {{ (index .Values "mariadb-sts").persistence.size }}
+{{- end }}

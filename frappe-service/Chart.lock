@@ -1,10 +1,4 @@
 dependencies:
-- name: mariadb
-  repository: https://charts.bitnami.com/bitnami
-  version: 11.5.7
-- name: postgresql
-  repository: https://charts.bitnami.com/bitnami
-  version: 12.1.6
 - name: redis
   repository: https://charts.bitnami.com/bitnami
   version: 17.15.2
@@ -23,5 +17,5 @@ dependencies:
 - name: valkey
   repository: https://valkey-io.github.io/valkey-helm
   version: 0.9.3
-digest: sha256:385ed6a17002451098bf5843447ae3ae92fc171473fe53bd8159e0d3db3f0280
-generated: "2026-01-25T10:46:54.985349932+05:30"
+digest: sha256:8f8077f117e2f21181b7eb694510ec3d17e9ca35798e6ca5123e281eb7b49ca7
+generated: "2026-11-10T00:00:00+05:30"

@@ -1,0 +1,91 @@
+{{- if (index .Values "postgresql-sts").enabled }}
+{{- required "postgresql-sts.postgresPassword is required" (index .Values "postgresql-sts").postgresPassword | trunc 0 }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "frappe.fullname" . }}-postgresql-sts
+  labels:
+    {{- include "frappe.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "frappe.name" . }}-postgresql-sts
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  serviceName: {{ include "frappe.fullname" . }}-postgresql-sts
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "frappe.name" . }}-postgresql-sts
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: postgresql
+          image: "{{ (index .Values "postgresql-sts").image.repository }}:{{ (index .Values "postgresql-sts").image.tag }}"
+          imagePullPolicy: {{ (index .Values "postgresql-sts").image.pullPolicy }}
+          {{- $pg := index .Values "postgresql-sts" }}
+          {{- if or $pg.maxConnections $pg.extraArgs }}
+          # Arguments starting with "-" are passed to postgres by the image entrypoint.
+          args:
+            {{- with $pg.maxConnections }}
+            - -c
+            - {{ printf "max_connections=%v" . | quote }}
+            {{- end }}
+            {{- range $pg.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          {{- end }}
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "frappe.fullname" . }}
+                  key: postgres-password
+            - name: POSTGRES_USER
+              value: {{ (index .Values "postgresql-sts").postgresUser | default "postgres" | quote }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - name: postgresql
+              containerPort: 5432
+              protocol: TCP
+          livenessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          # pg_isready over TCP: the image's first-boot init server listens on the
+          # unix socket only, so the pod turns ready once the real server accepts
+          # connections, not when the port first opens.
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -h 127.0.0.1 -p 5432 -U "$POSTGRES_USER"
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          {{- with (index .Values "postgresql-sts").resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: {{ (index .Values "postgresql-sts").persistence.storageClass }}
+        resources:
+          requests:
+            storage: {{ (index .Values "postgresql-sts").persistence.size }}
+{{- end }}

@@ -75,11 +75,7 @@ spec:
         {{- end }}
         env:
           - name: DB_HOST
-            {{- if or .Values.mariadb.enabled (get .Values "mariadb-subchart").enabled }}
-            value: {{ .Release.Name }}-mariadb-subchart
-            {{- else if or .Values.postgresql.enabled (get .Values "postgresql-subchart").enabled }}
-            value: {{ .Release.Name }}-postgresql-subchart
-            {{- else if (get .Values "mariadb-sts").enabled }}
+            {{- if (get .Values "mariadb-sts").enabled }}
             value: {{ include "frappe.fullname" . }}-mariadb-sts
             {{- else if (get .Values "postgresql-sts").enabled }}
             value: {{ include "frappe.fullname" . }}-postgresql-sts
@@ -87,11 +83,7 @@ spec:
             value: "{{ .Values.dbHost }}"
             {{- end }}
           - name: DB_PORT
-            {{- if or .Values.mariadb.enabled (get .Values "mariadb-subchart").enabled }}
-            value: "3306"
-            {{- else if or .Values.postgresql.enabled (get .Values "postgresql-subchart").enabled }}
-            value: "5432"
-            {{- else if (get .Values "mariadb-sts").enabled }}
+            {{- if (get .Values "mariadb-sts").enabled }}
             value: "3306"
             {{- else if (get .Values "postgresql-sts").enabled }}
             value: "5432"

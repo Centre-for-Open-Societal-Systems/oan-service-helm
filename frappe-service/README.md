@@ -32,7 +32,7 @@ helm upgrade --install frappe-bench --namespace frappe frappe/frappe --set persi
     1. [Existing PVC](#existing-pvc)
     2. [Existing Storage Class](#existing-storage-class)
     3. [External Database](#external-database)
-    4. [Using Bitnami Subcharts (Legacy)](#using-bitnami-subcharts-legacy)
+    4. [Using Bitnami Redis Subcharts (Legacy)](#using-bitnami-redis-subcharts-legacy)
 5. [Installation](#installation)
 6. [Generate Additional Resources](#generate-additional-resources)
     1. [Create new site](#create-new-site)
@@ -59,7 +59,7 @@ This chart bootstraps a Frappe deployment on a Kubernetes cluster using the Helm
 
 The following table lists the configurable parameters of the Frappe chart and their default values.
 
-### frappe
+### frappe-service
 
 ![Version: 8.0.91-oan.1](https://img.shields.io/badge/Version-8.0.91--oan.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v16.54.0](https://img.shields.io/badge/AppVersion-v16.54.0-informational?style=flat-square)
 
@@ -69,8 +69,6 @@ Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 
 | Repository | Name | Version |
 |------------|------|---------|
-| https://charts.bitnami.com/bitnami | mariadb-subchart(mariadb) | 11.5.7 |
-| https://charts.bitnami.com/bitnami | postgresql-subchart(postgresql) | 12.1.6 |
 | https://charts.bitnami.com/bitnami | redis-cache(redis) | 17.15.2 |
 | https://charts.bitnami.com/bitnami | redis-queue(redis) | 17.15.2 |
 | https://valkey-io.github.io/valkey-helm | valkey-cache(valkey) | 0.9.3 |
@@ -238,14 +236,11 @@ Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 | mariadb-sts.image.pullPolicy | string | `"IfNotPresent"` |  |
 | mariadb-sts.image.repository | string | `"mariadb"` |  |
 | mariadb-sts.image.tag | string | `"10.6"` |  |
-| mariadb-sts.myCnf | string | `"[mysqld]\nskip-character-set-client-handshake\nskip-innodb-read-only-compressed\ncharacter-set-server=utf8mb4\ncollation-server=utf8mb4_unicode_ci\n"` |  |
+| mariadb-sts.myCnf | string | `"[mysqld]\nskip-character-set-client-handshake\nskip-innodb-read-only-compressed\ncharacter-set-server=utf8mb4\ncollation-server=utf8mb4_unicode_ci\nmax_connections=300\n"` |  |
 | mariadb-sts.persistence.size | string | `"8Gi"` |  |
-| mariadb-sts.resources | object | `{}` |  |
+| mariadb-sts.resources.requests.cpu | string | `"250m"` |  |
+| mariadb-sts.resources.requests.memory | string | `"512Mi"` |  |
 | mariadb-sts.rootPassword | string | `""` |  |
-| mariadb-subchart.enabled | bool | `false` |  |
-| mariadb-subchart.image.repository | string | `"bitnamilegacy/mariadb"` |  |
-| mariadb-subchart.image.tag | string | `"10.6.17-debian-11-r10"` |  |
-| mariadb.enabled | bool | `false` |  |
 | nameOverride | string | `""` |  |
 | nginx.affinity | object | `{}` |  |
 | nginx.autoscaling.enabled | bool | `false` |  |
@@ -287,17 +282,16 @@ Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 | persistence.worker.size | string | `"8Gi"` |  |
 | podSecurityContext.supplementalGroups[0] | int | `1000` |  |
 | postgresql-sts.enabled | bool | `true` |  |
+| postgresql-sts.extraArgs | list | `[]` |  |
 | postgresql-sts.image.pullPolicy | string | `"IfNotPresent"` |  |
 | postgresql-sts.image.repository | string | `"postgres"` |  |
 | postgresql-sts.image.tag | string | `"15"` |  |
+| postgresql-sts.maxConnections | int | `300` |  |
 | postgresql-sts.persistence.size | string | `"8Gi"` |  |
 | postgresql-sts.postgresPassword | string | `""` |  |
 | postgresql-sts.postgresUser | string | `"postgres"` |  |
-| postgresql-sts.resources | object | `{}` |  |
-| postgresql-subchart.enabled | bool | `false` |  |
-| postgresql-subchart.image.repository | string | `"bitnamilegacy/postgresql"` |  |
-| postgresql-subchart.image.tag | string | `"14"` |  |
-| postgresql.enabled | bool | `false` |  |
+| postgresql-sts.resources.requests.cpu | string | `"250m"` |  |
+| postgresql-sts.resources.requests.memory | string | `"512Mi"` |  |
 | redis-cache.architecture | string | `"standalone"` |  |
 | redis-cache.auth.enabled | bool | `false` |  |
 | redis-cache.enabled | bool | `true` |  |
@@ -398,7 +392,7 @@ Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 | worker.gunicorn.service.type | string | `"ClusterIP"` |  |
 | worker.gunicorn.sidecars | list | `[]` |  |
 | worker.gunicorn.tolerations | list | `[]` |  |
-| worker.healthProbe | string | `"exec:\n  command:\n    - bash\n    - -c\n    - |-\n      echo \"Pinging backing services\";\n      {{- if (index .Values \"mariadb-sts\").enabled }}\n      wait-for-it {{ include \"frappe.fullname\" . }}-mariadb-sts:3306 -t 1;\n      {{- else if (index .Values \"postgresql-sts\").enabled }}\n      wait-for-it {{ include \"frappe.fullname\" . }}-postgresql-sts:5432 -t 1;\n      {{- else if or .Values.mariadb.enabled (get .Values \"mariadb-subchart\").enabled }}\n      (\n        wait-for-it {{ .Release.Name }}-mariadb-subchart:3306 -t 0 || \\\n        wait-for-it {{ .Release.Name }}-mariadb:3306 -t 0 || \\\n        wait-for-it {{ .Release.Name }}-mariadb-subchart-primary:3306 -t 0 || \\\n        wait-for-it {{ .Release.Name }}-mariadb-primary:3306 -t 1\n      )\n      {{- else if or .Values.postgresql.enabled (get .Values \"postgresql-subchart\").enabled }}\n      (\n        wait-for-it {{ .Release.Name }}-postgresql-subchart:5432 -t 0 || \\\n        wait-for-it {{ .Release.Name }}-postgresql:5432 -t 1\n      )\n      {{- else if or .Values.postgresql.enabled (index .Values \"postgresql-subchart\").enabled }}\n      wait-for-it {{ .Release.Name }}-postgresql-subchart:5432 -t 1;\n      {{- else if .Values.dbHost }}\n      wait-for-it {{ .Values.dbHost }}:{{ .Values.dbPort }} -t 1;\n      {{- end }}\n      {{- if .Values.externalRedis.cache }}\n      wait-for-it $(echo {{ .Values.externalRedis.cache }} | sed 's,redis://,,') -t 1;\n      {{- else if (index .Values \"valkey-cache\").enabled }}\n      wait-for-it {{ .Release.Name }}-valkey-cache:6379 -t 1;\n      {{- else if (index .Values \"dragonfly-cache\").enabled }}\n      wait-for-it {{ .Release.Name }}-dragonfly-cache:6379 -t 1;\n      {{- else if (index .Values \"redis-cache\").enabled }}\n      wait-for-it {{ .Release.Name }}-redis-cache-master:6379 -t 1;\n      {{- end }}\n      {{- if .Values.externalRedis.queue }}\n      wait-for-it $(echo {{ .Values.externalRedis.queue }} | sed 's,redis://,,') -t 1;\n      {{- else if (index .Values \"valkey-queue\").enabled }}\n      wait-for-it {{ .Release.Name }}-valkey-queue:6379 -t 1;\n      {{- else if (index .Values \"dragonfly-queue\").enabled }}\n      wait-for-it {{ .Release.Name }}-dragonfly-queue:6379 -t 1;\n      {{- else if (index .Values \"redis-queue\").enabled }}\n      wait-for-it {{ .Release.Name }}-redis-queue-master:6379 -t 1;\n      {{- end }}\ninitialDelaySeconds: 15\nperiodSeconds: 5\ntimeoutSeconds: 5\n"` |  |
+| worker.healthProbe | string | `"exec:\n  command:\n    - bash\n    - -c\n    - |-\n      echo \"Pinging backing services\";\n      {{- if (index .Values \"mariadb-sts\").enabled }}\n      wait-for-it {{ include \"frappe.fullname\" . }}-mariadb-sts:3306 -t 1;\n      {{- else if (index .Values \"postgresql-sts\").enabled }}\n      wait-for-it {{ include \"frappe.fullname\" . }}-postgresql-sts:5432 -t 1;\n      {{- else if .Values.dbHost }}\n      wait-for-it {{ .Values.dbHost }}:{{ .Values.dbPort }} -t 1;\n      {{- end }}\n      {{- if .Values.externalRedis.cache }}\n      wait-for-it $(echo {{ .Values.externalRedis.cache }} | sed 's,redis://,,') -t 1;\n      {{- else if (index .Values \"valkey-cache\").enabled }}\n      wait-for-it {{ .Release.Name }}-valkey-cache:6379 -t 1;\n      {{- else if (index .Values \"dragonfly-cache\").enabled }}\n      wait-for-it {{ .Release.Name }}-dragonfly-cache:6379 -t 1;\n      {{- else if (index .Values \"redis-cache\").enabled }}\n      wait-for-it {{ .Release.Name }}-redis-cache-master:6379 -t 1;\n      {{- end }}\n      {{- if .Values.externalRedis.queue }}\n      wait-for-it $(echo {{ .Values.externalRedis.queue }} | sed 's,redis://,,') -t 1;\n      {{- else if (index .Values \"valkey-queue\").enabled }}\n      wait-for-it {{ .Release.Name }}-valkey-queue:6379 -t 1;\n      {{- else if (index .Values \"dragonfly-queue\").enabled }}\n      wait-for-it {{ .Release.Name }}-dragonfly-queue:6379 -t 1;\n      {{- else if (index .Values \"redis-queue\").enabled }}\n      wait-for-it {{ .Release.Name }}-redis-queue-master:6379 -t 1;\n      {{- end }}\ninitialDelaySeconds: 15\nperiodSeconds: 5\ntimeoutSeconds: 5\n"` |  |
 | worker.long.affinity | object | `{}` |  |
 | worker.long.autoscaling.enabled | bool | `false` |  |
 | worker.long.autoscaling.maxReplicas | int | `3` |  |
@@ -481,13 +475,13 @@ Recommended alternatives as per priority:
 
 - [Managed DB](https://github.com/frappe/frappe/wiki/Using-Frappe-with-Amazon-RDS-(or-any-other-DBaaS)): Recommended AWS MariaDB RDS.
 - [Self hosted MariaDB](https://github.com/frappe/frappe/wiki/Setup-MariaDB-Server): Self hosted mariadb server setup for Debian or Ubuntu.
-- [Bitnami Subcharts](https://github.com/bitnami/charts/tree/main/bitnami/mariadb): For backward compatibility, the Bitnami MariaDB and PostgreSQL subcharts can be enabled. See the Using Bitnami Subcharts (Legacy) section.
+- In-cluster StatefulSet: set `mariadb-sts.enabled` or `postgresql-sts.enabled` to run the database inside the cluster. The Bitnami MariaDB and PostgreSQL subcharts are no longer shipped with this chart.
 
 ### Managed Redis
 
 By default, this chart deploys two Valkey instances, one for caching and one for the queue. Valkey is used as an in-memory database, and having it in the cluster provides the lowest latency.
 
-For backward compatibility or other requirements, DragonflyDB or the Bitnami Redis subchart can be enabled instead. See the Using Bitnami Subcharts (Legacy) section.
+For backward compatibility or other requirements, DragonflyDB or the Bitnami Redis subchart can be enabled instead. See the Using Bitnami Redis Subcharts (Legacy) section.
 
 Alternatively, any managed Redis-compatible service can be used by providing the connection details in your `values.yaml`.
 
@@ -561,17 +555,13 @@ You can configure this to use ReadWriteOnce (RWO) if you are running a single-no
 
 ### External Database
 
-To use an external database (like Amazon RDS), disable the built-in and subchart databases and provide the connection details.
+To use an external database (like Amazon RDS), disable the built-in databases and provide the connection details.
 
 ```yaml
 # Disable all in-cluster databases
 mariadb-sts:
   enabled: false
 postgresql-sts:
-  enabled: false
-mariadb-subchart:
-  enabled: false
-postgresql-subchart:
   enabled: false
 
 dbHost: "1.2.3.4"
@@ -582,28 +572,19 @@ dbExistingSecret: "my-external-db-secret"
 dbExistingSecretPasswordKey: "password"
 ```
 
-### Using Bitnami Subcharts (Legacy)
+### Using Bitnami Redis Subcharts (Legacy)
 
-> **Note for Upgrading Users**: If you are upgrading from a previous version where you used the default Bitnami subchart, you must now explicitly set `mariadb-subchart: true` (or `mariadb.enabled: true` for backward compatibility) in your `custom-values.yaml` to prevent Helm from disabling it during the upgrade.
+The Bitnami MariaDB and PostgreSQL subcharts have been removed from this chart; use `mariadb-sts`, `postgresql-sts` or an external database instead. The Bitnami Redis subcharts are still available for the cache and queue.
 
-To use the classic Bitnami subcharts for the database or cache/queue, disable the new built-in components and enable the corresponding subcharts.
+To use them, disable the built-in Valkey components and enable the corresponding subcharts.
 
 ```yaml
-# Disable new built-in MariaDB and Valkey
-mariadb-sts:
-  enabled: false
+# Disable new built-in Valkey
 valkey-cache:
   enabled: false
 valkey-queue:
   enabled: false
-# Enable and configure classic Bitnami subcharts
-mariadb-subchart:
-  enabled: true
-  # Pass values to the bitnami/mariadb subchart here
-  # primary:
-  #   persistence:
-  #     size: 10Gi
-
+# Enable and configure classic Bitnami Redis subcharts
 redis-cache:
   enabled: true
   # Pass values to the bitnami/redis subchart here
@@ -943,4 +924,6 @@ The command removes all the Kubernetes components installed by the chart and del
 
 ## Migrating from Bitnami Subcharts
 
-> **IMPORTANT:** If you are upgrading from a previous version (7.x or older) and relied on the default in-cluster database (Bitnami MariaDB or PostgreSQL), you **must** read this section and the [MIGRATION.md](https://github.com/frappe/helm/blob/main/frappe/MIGRATION.md) guide before performing `helm upgrade`. The new chart version changes the default behavior, and failing to update your `custom-values.yaml` can lead to the accidental uninstallation of your database and potential data loss.
+> **IMPORTANT:** If you are upgrading from a previous version (7.x or older) and relied on the default in-cluster database (Bitnami MariaDB or PostgreSQL), you **must** read this section and the [MIGRATION.md](MIGRATION.md) guide before performing `helm upgrade`.
+
+> **This chart no longer ships the Bitnami MariaDB and PostgreSQL subcharts.** Upgrading a release that still runs one of them to this chart will uninstall that database. Complete the migration to `mariadb-sts`, `postgresql-sts` or an external database using an earlier chart version that still includes the subcharts, then upgrade to this chart.

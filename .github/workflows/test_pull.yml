@@ -26,5 +26,7 @@ jobs:
 
       # The upstream k3s install test (tests/compose.yaml) is not run: it installs the chart
       # without an application image, which the OAN chart leaves to each environment.
-      - name: Lint the chart
-        run: helm lint frappe -f tests/frappe/values.yaml
+      - name: Lint the charts
+        run: |
+          helm lint frappe-service -f tests/frappe/values.yaml
+          helm lint frappe-common --set postgresql-sts.postgresPassword=changeit

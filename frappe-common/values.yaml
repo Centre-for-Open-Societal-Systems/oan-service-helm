@@ -1,0 +1,96 @@
+# Default values for frappe-common.
+# This chart only deploys the database for Frappe: MariaDB or PostgreSQL,
+# either as the in-chart StatefulSet (mariadb-sts / postgresql-sts) or as the
+# Bitnami subchart (mariadb-subchart / postgresql-subchart). Enable one.
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+podSecurityContext:
+  supplementalGroups: [1000]
+
+mariadb-sts:
+  enabled: false
+  image:
+    repository: mariadb
+    tag: "10.6"
+    pullPolicy: IfNotPresent
+  # Required when mariadb-sts is enabled.
+  rootPassword: ""
+  persistence:
+    # storageClass: "nfs"
+    size: 8Gi
+  # Requests reserve capacity so the shared database is not the first pod
+  # evicted under node memory pressure. No limits by default; set them per
+  # environment. Use null (not {}) to drop these defaults.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+  # max_connections: every Frappe service sharing this database opens
+  # connections from gunicorn, workers, scheduler and socketio; the MariaDB
+  # default of 151 runs out with a few services.
+  myCnf: |
+    [mysqld]
+    skip-character-set-client-handshake
+    skip-innodb-read-only-compressed
+    character-set-server=utf8mb4
+    collation-server=utf8mb4_unicode_ci
+    max_connections=300
+
+mariadb-subchart:
+  # To enable the classic Bitnami MariaDB subchart, set enabled to true
+  # and set mariadb-sts.enabled to false.
+  enabled: false
+  image:
+    repository: bitnamilegacy/mariadb
+    tag: "10.6.17-debian-11-r10"
+  # Values passed to the bitnami/mariadb subchart can be defined here.
+
+# alias for mariadb-subchart.enabled for backward compatibility
+# (Helm uses the first condition key that is set, so this stays unset by default):
+# mariadb:
+#   enabled: true
+
+postgresql-sts:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "15"
+    pullPolicy: IfNotPresent
+  # Superuser created on first start (POSTGRES_USER). Changing it later has no
+  # effect on an existing data volume.
+  postgresUser: "postgres"
+  # Required when postgresql-sts is enabled.
+  postgresPassword: ""
+  # Every Frappe service sharing this database opens connections from gunicorn,
+  # workers, scheduler and socketio; the PostgreSQL default of 100 runs out
+  # with a few services. Passed as -c max_connections=<n>.
+  maxConnections: 300
+  # Extra postgres server flags, e.g. ["-c", "shared_buffers=256MB"].
+  extraArgs: []
+  persistence:
+    # storageClass: "nfs"
+    size: 8Gi
+  # Requests reserve capacity so the shared database is not the first pod
+  # evicted under node memory pressure. No limits by default; set them per
+  # environment. Use null (not {}) to drop these defaults.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+postgresql-subchart:
+  # To enable the classic Bitnami PostgreSQL subchart, set enabled to true
+  # and set postgresql-sts.enabled to false.
+  enabled: false
+  image:
+    repository: bitnamilegacy/postgresql
+    tag: "14"
+  # Values passed to the bitnami/postgresql subchart can be defined here.
+
+# alias for postgresql-subchart.enabled for backward compatibility
+# (Helm uses the first condition key that is set, so this stays unset by default):
+# postgresql:
+#   enabled: true

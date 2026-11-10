@@ -31,17 +31,17 @@ echo -e "\n"
 
 echo -e "\e[1m\e[4mCreate frappe-bench release from frappe/frappe helm chart\e[0m"
 kubectl create namespace frappe || echo "namespace frappe already exists"
-helm upgrade --install frappe-bench --namespace frappe ./frappe -f tests/frappe/values.yaml --wait --timeout=15m0s
+helm upgrade --install frappe-bench --namespace frappe ./frappe-service -f tests/frappe/values.yaml --wait --timeout=15m0s
 echo -e "\n"
 
 echo -e "\e[1m\e[4mCreate mysite.localhost\e[0m"
 helm template frappe-bench \
-  -n frappe ./frappe \
+  -n frappe ./frappe-service \
   -f tests/frappe/values.yaml \
   -f tests/frappe/values-job-create-mysite.yaml \
   -s templates/job-create-site.yaml \
   | kubectl -n frappe apply -f -
-helm template frappe-bench -n frappe frappe -f tests/frappe/values.yaml -f tests/frappe/values-ingress-mysite.yaml -s templates/ingress.yaml | kubectl -n frappe apply -f -
+helm template frappe-bench -n frappe frappe-service -f tests/frappe/values.yaml -f tests/frappe/values-ingress-mysite.yaml -s templates/ingress.yaml | kubectl -n frappe apply -f -
 echo -e "\n"
 
 echo -e "\e[1m\e[4mWait for site creation job to complete\e[0m"
@@ -53,12 +53,12 @@ curl -sS -H "Host: mysite.localhost" http://k3s/api/method/ping
 echo -e "\n"
 
 echo -e "\e[1m\e[4mUpgrade frappe-bench release with chart from PR\e[0m"
-helm upgrade frappe-bench -n frappe ./frappe -f tests/frappe/values.yaml --wait --timeout=15m0s
+helm upgrade frappe-bench -n frappe ./frappe-service -f tests/frappe/values.yaml --wait --timeout=15m0s
 echo -e "\n"
 
 echo -e "\e[1m\e[4mMigrate mysite.localhost\e[0m"
 helm template frappe-bench \
-  -n frappe ./frappe \
+  -n frappe ./frappe-service \
   -f tests/frappe/values.yaml \
   -f tests/frappe/values-job-migrate-mysite.yaml \
   -s templates/job-migrate-site.yaml > /tmp/migrate-job.yaml

@@ -148,10 +148,10 @@ Checks for the site-config job. It reads the site the create-site job makes, and
 replaces the migrate job, which runs in parallel with create-site.
 */}}
 {{- define "frappe.dbRootUser" -}}
-{{- if or .Values.mariadb.enabled (get .Values "mariadb-subchart").enabled (get .Values "mariadb-sts").enabled -}}
+{{- if (get .Values "mariadb-sts").enabled -}}
 root
-{{- else if or .Values.postgresql.enabled (get .Values "postgresql-subchart").enabled (get .Values "postgresql-sts").enabled -}}
-postgres
+{{- else if (get .Values "postgresql-sts").enabled -}}
+{{- (get .Values "postgresql-sts").postgresUser | default "postgres" -}}
 {{- else -}}
 {{- required "dbRootUser is required for an external database" .Values.dbRootUser -}}
 {{- end -}}
@@ -172,7 +172,7 @@ postgres
 {{- if and $sts .Values.dbHost -}}
 {{- fail "dbHost is ignored while postgresql-sts or mariadb-sts is enabled: disable the in-chart database" -}}
 {{- end -}}
-{{- if not (or $sts .Values.dbHost .Values.mariadb.enabled .Values.postgresql.enabled (get .Values "mariadb-subchart").enabled (get .Values "postgresql-subchart").enabled) -}}
+{{- if not (or $sts .Values.dbHost) -}}
 {{- fail "set dbHost or enable an in-chart database" -}}
 {{- end -}}
 {{- end -}}

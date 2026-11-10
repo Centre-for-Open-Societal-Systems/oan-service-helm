@@ -1,21 +1,11 @@
 apiVersion: v2
-name: frappe
+name: frappe-service
 description: Kubernetes Helm Chart for the latest stable Frappe branch
 icon: ""
 type: application
 version: 8.0.91-oan.1
 appVersion: v16.54.0
 dependencies:
-- name: mariadb
-  condition: mariadb.enabled,mariadb-subchart.enabled
-  alias: mariadb-subchart
-  version: "11.5.7"
-  repository: "https://charts.bitnami.com/bitnami"
-- name: postgresql
-  condition: postgresql.enabled,postgresql-subchart.enabled
-  alias: postgresql-subchart
-  version: "12.1.6"
-  repository: "https://charts.bitnami.com/bitnami"
 - name: redis
   condition: redis-cache.enabled
   alias: redis-cache
