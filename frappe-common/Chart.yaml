@@ -3,7 +3,7 @@ name: frappe-common
 description: MariaDB and PostgreSQL databases for Frappe
 icon: ""
 type: application
-version: 8.0.91-oan.1
+version: 8.0.91-oan.2
 appVersion: v16.54.0
 dependencies:
 - name: mariadb

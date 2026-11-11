@@ -93,6 +93,9 @@ postgresql-subchart:
     # major on an existing volume.
     tag: "16.4.0-debian-12-r14"
   # Values passed to the bitnami/postgresql subchart can be defined here.
+  # auth.existingSecret: when set, this chart creates that Secret (random superuser password under
+  # auth.secretKeys.adminPasswordKey, default postgres-password) on first install and reuses it
+  # on upgrade. The Secret is kept on uninstall.
 
 # alias for postgresql-subchart.enabled for backward compatibility
 # (Helm uses the first condition key that is set, so this stays unset by default):
