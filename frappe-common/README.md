@@ -69,7 +69,7 @@ MariaDB and PostgreSQL databases for Frappe
 | mariadb-subchart.image.tag | string | `"10.6.17-debian-11-r10"` |  |
 | nameOverride | string | `""` |  |
 | podSecurityContext.supplementalGroups[0] | int | `1000` |  |
-| postgresql-sts.enabled | bool | `true` |  |
+| postgresql-sts.enabled | bool | `false` |  |
 | postgresql-sts.extraArgs | list | `[]` |  |
 | postgresql-sts.image.pullPolicy | string | `"IfNotPresent"` |  |
 | postgresql-sts.image.repository | string | `"postgres"` |  |
@@ -80,6 +80,6 @@ MariaDB and PostgreSQL databases for Frappe
 | postgresql-sts.postgresUser | string | `"postgres"` |  |
 | postgresql-sts.resources.requests.cpu | string | `"250m"` |  |
 | postgresql-sts.resources.requests.memory | string | `"512Mi"` |  |
-| postgresql-subchart.enabled | bool | `false` |  |
+| postgresql-subchart.enabled | bool | `true` |  |
 | postgresql-subchart.image.repository | string | `"bitnamilegacy/postgresql"` |  |
-| postgresql-subchart.image.tag | string | `"14"` |  |
+| postgresql-subchart.image.tag | string | `"15.9.0-debian-12-r0"` |  |
