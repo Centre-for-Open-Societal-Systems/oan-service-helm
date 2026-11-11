@@ -1,0 +1,104 @@
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+image:
+  repository: ""   # required, e.g. <account>.dkr.ecr.ap-south-1.amazonaws.com/oan-grievance-ui
+  tag: ""          # required, e.g. develop-12-abc1234
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# Name of the app container (the Jenkinsfiles run `kubectl set image <container>=<image>`)
+containerName: ui
+# Port the Next.js server listens on in the container (both UI Dockerfiles use 3000)
+containerPort: 3000
+
+# Leave unset to use the image's own CMD
+command: []
+args: []
+
+# Plain (non-secret) environment, rendered into a ConfigMap and loaded with envFrom.
+# A2C UI:       API_BASE_URL
+# Grievance UI: AUTH_API_BASE_URL, REALTIME_PUBLIC_URL, REALTIME_SITE, IDLE_TIMEOUT_MS, ...
+env: {}
+
+# Secret environment, rendered into a Secret. Use existingSecret to reference one you manage instead.
+secretEnv: {}
+existingSecret: ""
+
+# Extra env entries (valueFrom etc.) and extra envFrom sources
+extraEnv: []
+envFrom: []
+
+serviceAccount:
+  create: true
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+podSecurityContext: {}
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 3000
+  annotations: {}
+
+livenessProbe:
+  httpGet:
+    path: /
+    port: http
+  initialDelaySeconds: 15
+  periodSeconds: 10
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPU: 75
+  targetMemory: 75
+
+initContainers: []
+# Extra containers in the pod (e.g. a realtime gateway), as full container specs
+sidecars: []
+volumes: []
+volumeMounts: []
+
+ingress:
+  enabled: false
+  # ingressName: ""
+  className: ""
+  annotations: {}
+  hosts:
+  - host: ui.cluster.local
+    paths:
+    - path: /
+      pathType: Prefix
+  tls: []
+
+httproute:
+  enabled: false
+  name: ""
+  annotations: {}
+  parentRefs:
+  - gatewayName: "public-gateway"
+    gatewayNamespace: "networking"
+    gatewaySectionName: "http"
+  hostnames:
+  - "ui.example.com"
+  rules:
+  - matches:
+    - pathType: "PathPrefix"
+      path: "/"

@@ -1,0 +1,7 @@
+apiVersion: v2
+name: ui-service
+description: Generic Helm chart for the OAN Next.js frontends (A2C UI, Grievance UI). Override values per UI.
+icon: ""
+type: application
+version: 0.1.0
+appVersion: "latest"

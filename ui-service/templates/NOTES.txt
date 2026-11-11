@@ -1,0 +1,7 @@
+{{ include "ui.fullname" . }} deployed: image {{ .Values.image.repository }}:{{ .Values.image.tag }}, port {{ .Values.service.port }}.
+{{- if .Values.ingress.enabled }}
+Ingress hosts:{{ range .Values.ingress.hosts }} {{ .host }}{{ end }}
+{{- end }}
+{{- if .Values.httproute.enabled }}
+HTTPRoute hostnames:{{ range .Values.httproute.hostnames }} {{ . }}{{ end }}
+{{- end }}
