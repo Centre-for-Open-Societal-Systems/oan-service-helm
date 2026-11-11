@@ -38,7 +38,7 @@ For moving from the Bitnami subcharts to the StatefulSets, see [MIGRATION.md](MI
 
 ## Parameters
 
-![Version: 8.0.91-oan.1](https://img.shields.io/badge/Version-8.0.91--oan.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v16.54.0](https://img.shields.io/badge/AppVersion-v16.54.0-informational?style=flat-square)
+![Version: 8.0.91-oan.2](https://img.shields.io/badge/Version-8.0.91--oan.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v16.54.0](https://img.shields.io/badge/AppVersion-v16.54.0-informational?style=flat-square)
 
 MariaDB and PostgreSQL databases for Frappe
 
