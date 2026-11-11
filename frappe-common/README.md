@@ -82,4 +82,4 @@ MariaDB and PostgreSQL databases for Frappe
 | postgresql-sts.resources.requests.memory | string | `"512Mi"` |  |
 | postgresql-subchart.enabled | bool | `true` |  |
 | postgresql-subchart.image.repository | string | `"bitnamilegacy/postgresql"` |  |
-| postgresql-subchart.image.tag | string | `"15.9.0-debian-12-r0"` |  |
+| postgresql-subchart.image.tag | string | `"16.4.0-debian-12-r14"` |  |

@@ -91,7 +91,7 @@ postgresql-subchart:
     repository: bitnamilegacy/postgresql
     # A data directory from one major version cannot be opened by another; do not change the
     # major on an existing volume.
-    tag: "15.9.0-debian-12-r0"
+    tag: "16.4.0-debian-12-r14"
   # Values passed to the bitnami/postgresql subchart can be defined here.
 
 # alias for postgresql-subchart.enabled for backward compatibility
