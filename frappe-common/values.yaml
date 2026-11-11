@@ -54,7 +54,9 @@ mariadb-subchart:
 #   enabled: true
 
 postgresql-sts:
-  enabled: true
+  # In-chart StatefulSet on the official postgres image. Off by default: the Bitnami
+  # postgresql-subchart below is the default PostgreSQL. Set true (and the subchart false) to use it.
+  enabled: false
   image:
     repository: postgres
     tag: "15"
@@ -82,12 +84,14 @@ postgresql-sts:
       memory: 512Mi
 
 postgresql-subchart:
-  # To enable the classic Bitnami PostgreSQL subchart, set enabled to true
-  # and set postgresql-sts.enabled to false.
-  enabled: false
+  # The Bitnami PostgreSQL subchart is the default PostgreSQL. To use the in-chart
+  # StatefulSet instead, set this to false and postgresql-sts.enabled to true.
+  enabled: true
   image:
     repository: bitnamilegacy/postgresql
-    tag: "14"
+    # A data directory from one major version cannot be opened by another; do not change the
+    # major on an existing volume.
+    tag: "16.4.0-debian-12-r14"
   # Values passed to the bitnami/postgresql subchart can be defined here.
 
 # alias for postgresql-subchart.enabled for backward compatibility
