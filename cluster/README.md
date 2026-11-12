@@ -7,6 +7,7 @@ oan_dev k3s node, and writes its kubeconfig. The identity is a ServiceAccount wi
 | --------------- | ---------------------------------------------- | ------------------------------------- |
 | each service    | built-in `admin` role                          | that service's Helm release           |
 | `frappe-common` | get Secret `oan-frappe-common-db`, nothing else | copy the shared PostgreSQL password   |
+| `api6-gateway`  | get/list Services                              | find the APISIX release's Redis       |
 
 It cannot touch anything else. One token deploys every listed service; give a service its own ServiceAccount
 (run the script with another `SA_NAME`) if that separation matters.

@@ -2,8 +2,9 @@
 # bootstrap-oan-dev.sh - Create the shared Jenkins deploy identity on the oan_dev k3s node and write its kubeconfig
 #
 # One ServiceAccount deploys every Frappe service: it gets the built-in `admin` role in each namespace listed on
-# the command line, and read access to the one Secret `oan-frappe-common-db` in frappe-common (the create-site Job
-# copies the shared PostgreSQL password from it). It can touch nothing else.
+# the command line, read access to the one Secret `oan-frappe-common-db` in frappe-common (the create-site Job
+# copies the shared PostgreSQL password from it) and get/list on Services in the APISIX namespace (the gateway
+# deploy finds the release's Redis there). It can touch nothing else.
 #
 # Run on a machine with admin kubectl access to the cluster (the node itself), then upload the file as the Jenkins
 # "Secret file" credential `oan-dev-kubeconfig` and delete it. Re-running is safe: it adds namespaces to the
@@ -16,6 +17,7 @@
 #   SA_NAMESPACE        namespace of the ServiceAccount [oan-ci]
 #   SA_NAME             name of the ServiceAccount [jenkins-oan-dev-deployer]
 #   DB_SECRET_NAMESPACE namespace of the shared PostgreSQL Secret [frappe-common]
+#   GATEWAY_NAMESPACE   namespace of the APISIX release, empty to skip its grant [api6-gateway]
 # To keep an identity that exists already, pass its names, e.g. SA_NAMESPACE=a2c SA_NAME=jenkins-a2c-deployer.
 set -euo pipefail
 
@@ -23,6 +25,7 @@ API_SERVER="${API_SERVER:-https://10.0.1.131:6443}"
 SA_NAMESPACE="${SA_NAMESPACE:-oan-ci}"
 SA_NAME="${SA_NAME:-jenkins-oan-dev-deployer}"
 DB_SECRET_NAMESPACE="${DB_SECRET_NAMESPACE:-frappe-common}"
+GATEWAY_NAMESPACE="${GATEWAY_NAMESPACE-api6-gateway}"
 TOKEN_SECRET="${SA_NAME}-token"
 
 manifests() {
@@ -74,6 +77,35 @@ subjects:
     name: ${SA_NAME}
     namespace: ${SA_NAMESPACE}
 YAML
+  if [ -n "${GATEWAY_NAMESPACE}" ]; then
+    cat <<YAML
+---
+# Gateway deploy: find the APISIX release's Redis Service.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: jenkins-read-services
+  namespace: ${GATEWAY_NAMESPACE}
+rules:
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ${SA_NAME}-read-services
+  namespace: ${GATEWAY_NAMESPACE}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: jenkins-read-services
+subjects:
+  - kind: ServiceAccount
+    name: ${SA_NAME}
+    namespace: ${SA_NAMESPACE}
+YAML
+  fi
   for ns in "$@"; do
     cat <<YAML
 ---
