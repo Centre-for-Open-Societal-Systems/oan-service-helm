@@ -765,6 +765,13 @@ extraWorkers: []
 #     my_queue: 300
 #   replicaCount: 1
 #   resources: {}
+#   # Needs resource requests: the targets are percentages of them. replicaCount is ignored.
+#   autoscaling:
+#     enabled: false
+#     minReplicas: 1
+#     maxReplicas: 3
+#     targetCPU: 75
+#     targetMemory: 75
 
 # Extra Services for a gateway in another cluster.
 gatewayAccess:
