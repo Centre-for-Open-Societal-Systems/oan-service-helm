@@ -1,0 +1,86 @@
+name: Publish develop charts
+
+# Every push to main that changes a chart packages it as 0.0.0-develop.<commit count> and adds the
+# archive to repository/develop/ of oan-helm. oan-helm's publish-channels workflow then updates the
+# index, checksums and CHANGELOG.md. Needs the secret OAN_HELM_TOKEN: a token with push access to
+# oan-helm (the same account as Jenkins credential oan-helm-fork-token).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frappe-common/**"
+      - "frappe-service/**"
+      - "ui-service/**"
+  workflow_dispatch:
+    inputs:
+      charts:
+        description: "Space separated chart folders to publish (default: all)"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-develop-charts
+  cancel-in-progress: false
+
+env:
+  OAN_HELM_REPOSITORY: Centre-for-Open-Societal-Systems/oan-helm
+
+jobs:
+  publish:
+    name: Package and publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: azure/setup-helm@v4
+      - name: Check out the publisher script
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.OAN_HELM_REPOSITORY }}
+          path: oan-helm
+          sparse-checkout: scripts/ci/publish_chart.py
+          sparse-checkout-cone-mode: false
+      - name: Select the changed charts
+        id: select
+        run: |
+          all="frappe-common frappe-service ui-service"
+          if [[ -n "${{ inputs.charts }}" ]]; then
+            selected="${{ inputs.charts }}"
+          elif [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            selected="$all"
+          else
+            selected=""
+            for chart in $all; do
+              if ! git diff --quiet "${{ github.event.before }}" "${GITHUB_SHA}" -- "$chart"; then
+                selected="$selected $chart"
+              fi
+            done
+          fi
+          echo "charts=${selected# }" >> "$GITHUB_OUTPUT"
+          echo "Charts to publish: ${selected:-none}"
+      - name: Package and publish
+        if: steps.select.outputs.charts != ''
+        env:
+          GH_TOKEN: ${{ secrets.OAN_HELM_TOKEN }}
+        run: |
+          version="0.0.0-develop.$(git rev-list --count HEAD)"
+          mkdir -p dist
+          for chart in ${{ steps.select.outputs.charts }}; do
+            # helm dependency build refuses a repository it does not know by URL.
+            grep -hE '^ *repository: *"?http' "$chart/Chart.yaml" | sed -E 's/^ *repository: *"?([^"]*)"?.*/\1/' | sort -u |
+              while read -r url; do helm repo add "r-$(echo "$url" | md5sum | cut -c1-8)" "$url" > /dev/null; done
+            helm dependency build "$chart"
+            helm lint "$chart"
+            helm package "$chart" --version "$version" --destination dist
+            set +e
+            python3 oan-helm/scripts/ci/publish_chart.py "dist/${chart}-${version}.tgz"
+            status=$?
+            set -e
+            # 4: this version is already published, so a re-run is not an error.
+            if [[ $status -ne 0 && $status -ne 4 ]]; then
+              exit "$status"
+            fi
+          done
