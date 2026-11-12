@@ -18,7 +18,9 @@ metadata:
   labels:
     {{- include "frappe.labels" $ | nindent 4 }}
 spec:
+  {{- if not (and .autoscaling .autoscaling.enabled) }}
   replicas: {{ default 1 .replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "frappe.name" $ }}-worker-{{ .name }}

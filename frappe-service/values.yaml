@@ -297,6 +297,9 @@ persistence:
     # two volumes' contents mixing at the mount root.
     # subPath: ""
     size: 8Gi
+    # Required: every Frappe Pod mounts this volume, so the class must give ReadWriteMany.
+    # OAN uses `nfs-csi` (csi-driver-nfs). On a single-node dev cluster the NFS server may
+    # run on the node itself; production keeps it on a separate node.
     # storageClass: "nfs"
     accessModes:
     - ReadWriteMany
@@ -765,6 +768,13 @@ extraWorkers: []
 #     my_queue: 300
 #   replicaCount: 1
 #   resources: {}
+#   # Needs resource requests: the targets are percentages of them. replicaCount is ignored.
+#   autoscaling:
+#     enabled: false
+#     minReplicas: 1
+#     maxReplicas: 3
+#     targetCPU: 75
+#     targetMemory: 75
 
 # Extra Services for a gateway in another cluster.
 gatewayAccess:
