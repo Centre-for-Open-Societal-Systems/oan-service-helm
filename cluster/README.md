@@ -1,26 +1,19 @@
-# Cluster bootstrap
+# Cluster access
 
-`bootstrap-oan-dev.sh` creates the one deploy identity that Jenkins uses to install the Frappe services on the
-oan_dev k3s node, and writes its kubeconfig. The identity is a ServiceAccount with:
+The Jenkins deploy identity that installs the Frappe services (its ServiceAccount, token Secret and
+RoleBindings) is the `oan-cluster-access` chart in
+[oan-helm](https://github.com/Centre-for-Open-Societal-Systems/oan-helm/blob/main/docs/cluster-access.md),
+so every cluster gets the same access from Git. Install it there first.
 
-| Namespace       | Access                                         | Used for                              |
-| --------------- | ---------------------------------------------- | ------------------------------------- |
-| each service    | built-in `admin` role                          | that service's Helm release           |
-| `frappe-common` | get Secret `oan-frappe-common-db`, nothing else | copy the shared PostgreSQL password   |
-| `api6-gateway`  | get/list Services                              | find the APISIX release's Redis       |
-
-It cannot touch anything else. One token deploys every listed service; give a service its own ServiceAccount
-(run the script with another `SA_NAME`) if that separation matters.
+`write-kubeconfig.sh` writes that identity's kubeconfig from the token Kubernetes issued. It creates and
+changes nothing on the cluster.
 
 ```bash
-# On the node, or any machine with admin kubectl access:
+# On the node, or any machine that can read the token Secret:
 API_SERVER=https://<address-the-agent-reaches>:6443 \
-  bash cluster/bootstrap-oan-dev.sh /tmp/oan-dev.kubeconfig a2c grievance
+  bash cluster/write-kubeconfig.sh /tmp/oan-dev.kubeconfig
 ```
 
 Upload `/tmp/oan-dev.kubeconfig` as the Jenkins **Secret file** credential `oan-dev-kubeconfig`, then delete every
-copy of it. Never commit it. Re-running adds namespaces and refreshes the kubeconfig. To see the manifests without
-applying them: `bash cluster/bootstrap-oan-dev.sh --print-manifests a2c grievance`.
-
-To keep an identity that exists already (the a2c deployer), pass its names:
-`SA_NAMESPACE=a2c SA_NAME=jenkins-a2c-deployer bash cluster/bootstrap-oan-dev.sh <out> a2c grievance`.
+copy of it. Never commit it. `SA_NAMESPACE` and `SA_NAME` select another identity (defaults: `a2c`,
+`jenkins-a2c-deployer`).
