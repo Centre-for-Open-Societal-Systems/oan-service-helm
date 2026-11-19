@@ -80,6 +80,10 @@ Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| apiCredential.backoffLimit | int | `6` |  |
+| apiCredential.enabled | bool | `false` |  |
+| apiCredential.resources | object | `{}` |  |
+| apiCredential.ttlSecondsAfterFinished | int | `86400` |  |
 | dbRootUser | string | `""` |  |
 | dragonfly-cache.enabled | bool | `false` |  |
 | dragonfly-queue.enabled | bool | `false` |  |
