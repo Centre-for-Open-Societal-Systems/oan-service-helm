@@ -61,7 +61,7 @@ The following table lists the configurable parameters of the Frappe chart and th
 
 ### frappe-service
 
-![Version: 8.0.91-oan.2](https://img.shields.io/badge/Version-8.0.91--oan.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v16.54.0](https://img.shields.io/badge/AppVersion-v16.54.0-informational?style=flat-square)
+![Version: 8.0.91-oan.3](https://img.shields.io/badge/Version-8.0.91--oan.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v16.54.0](https://img.shields.io/badge/AppVersion-v16.54.0-informational?style=flat-square)
 
 Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 
@@ -80,6 +80,10 @@ Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| apiCredential.backoffLimit | int | `6` |  |
+| apiCredential.enabled | bool | `false` |  |
+| apiCredential.resources | object | `{}` |  |
+| apiCredential.ttlSecondsAfterFinished | int | `86400` |  |
 | dbRootUser | string | `""` |  |
 | dragonfly-cache.enabled | bool | `false` |  |
 | dragonfly-queue.enabled | bool | `false` |  |

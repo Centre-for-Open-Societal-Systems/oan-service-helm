@@ -731,6 +731,19 @@ valkey-queue:
   # Values passed to the valkey/valkey subchart can be defined here.
 
 # Job that configures the site after create-site, on every install and upgrade.
+# Sets api_key and api_secret on existing Users from Secrets, once the site exists. Each Secret
+# key holds `token <api_key>:<api_secret>`, the value an API gateway sends in the Authorization
+# header, so the Secret is the one source of truth. The Users must already exist.
+apiCredential:
+  enabled: false
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 86400
+  resources: {}
+  # users:
+  #   - user: ivr.integration@example.com
+  #     secretName: oan-grievance-ivr-frappe-credential
+  #     secretKey: authorization   # default
+
 siteConfig:
   enabled: false
   backoffLimit: 3
