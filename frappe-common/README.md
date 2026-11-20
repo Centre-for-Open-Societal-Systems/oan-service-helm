@@ -36,9 +36,31 @@ dbExistingSecretPasswordKey: postgres-password
 
 For moving from the Bitnami subcharts to the StatefulSets, see [MIGRATION.md](MIGRATION.md).
 
+## Databases for other applications
+
+Applications that are not Frappe sites (Frappe's create-site job makes its own database) can share the PostgreSQL
+through `appDatabases`. A post-install/post-upgrade Job creates each database and a login role that owns it. The role
+has `LOGIN` only (no superuser, createdb or createrole), and `CONNECT` is revoked from `PUBLIC`, so the other apps on
+the server cannot open the database. An existing database is never dropped or re-owned, and an existing role gets its
+password from the Secret again on every upgrade.
+
+```yaml
+appDatabases:
+  - name: leads_db
+    user: leads_api
+  - name: lead_db
+    user: leads_telephony
+```
+
+For each entry the chart creates Secret `<fullname>-app-<name>` (`_` becomes `-`, e.g.
+`frappe-common-app-leads-db`) with the keys `host`, `port`, `database`, `username`, `password` and `jdbc-url`. The
+password is random, reused on upgrade and kept on uninstall. Copy the Secret into the application's namespace, or put
+its values in the application's own secret values. To supply the login instead, set `existingSecret` (with `userKey`
+and `passwordKey`, default `username` / `password`) to a Secret in this release's namespace.
+
 ## Parameters
 
-![Version: 8.0.91-oan.2](https://img.shields.io/badge/Version-8.0.91--oan.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v16.54.0](https://img.shields.io/badge/AppVersion-v16.54.0-informational?style=flat-square)
+![Version: 8.0.91-oan.3](https://img.shields.io/badge/Version-8.0.91--oan.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v16.54.0](https://img.shields.io/badge/AppVersion-v16.54.0-informational?style=flat-square)
 
 MariaDB and PostgreSQL databases for Frappe
 
@@ -53,6 +75,12 @@ MariaDB and PostgreSQL databases for Frappe
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| appDatabases | list | `[]` | Databases for applications that are not Frappe sites (Frappe's create-site job makes its own), on the PostgreSQL of this release. A post-install/post-upgrade Job creates each database and a login role that owns it (LOGIN only, CONNECT revoked from PUBLIC). Existing databases are never dropped or re-owned. Without existingSecret the chart creates Secret <fullname>-app-<name, _ as -> (keys host, port, database, username, password, jdbc-url) with a random password, reuses it on upgrade and keeps it on uninstall. |
+| appDatabasesJob.activeDeadlineSeconds | int | `900` | How long the Job waits for PostgreSQL and the Secrets before it fails. |
+| appDatabasesJob.image | string | `""` | psql image (15 or later). Empty: the image of the enabled PostgreSQL. |
+| appDatabasesJob.resources.limits.memory | string | `"128Mi"` |  |
+| appDatabasesJob.resources.requests.cpu | string | `"25m"` |  |
+| appDatabasesJob.resources.requests.memory | string | `"32Mi"` |  |
 | fullnameOverride | string | `""` |  |
 | imagePullSecrets | list | `[]` |  |
 | mariadb-sts.enabled | bool | `false` |  |

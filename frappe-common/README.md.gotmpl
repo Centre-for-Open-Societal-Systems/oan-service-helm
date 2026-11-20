@@ -36,6 +36,28 @@ dbExistingSecretPasswordKey: postgres-password
 
 For moving from the Bitnami subcharts to the StatefulSets, see [MIGRATION.md](MIGRATION.md).
 
+## Databases for other applications
+
+Applications that are not Frappe sites (Frappe's create-site job makes its own database) can share the PostgreSQL
+through `appDatabases`. A post-install/post-upgrade Job creates each database and a login role that owns it. The role
+has `LOGIN` only (no superuser, createdb or createrole), and `CONNECT` is revoked from `PUBLIC`, so the other apps on
+the server cannot open the database. An existing database is never dropped or re-owned, and an existing role gets its
+password from the Secret again on every upgrade.
+
+```yaml
+appDatabases:
+  - name: leads_db
+    user: leads_api
+  - name: lead_db
+    user: leads_telephony
+```
+
+For each entry the chart creates Secret `<fullname>-app-<name>` (`_` becomes `-`, e.g.
+`frappe-common-app-leads-db`) with the keys `host`, `port`, `database`, `username`, `password` and `jdbc-url`. The
+password is random, reused on upgrade and kept on uninstall. Copy the Secret into the application's namespace, or put
+its values in the application's own secret values. To supply the login instead, set `existingSecret` (with `userKey`
+and `passwordKey`, default `username` / `password`) to a Secret in this release's namespace.
+
 ## Parameters
 
 {{ template "chart.versionBadge" . }}{{ template "chart.typeBadge" . }}{{ template "chart.appVersionBadge" . }}
