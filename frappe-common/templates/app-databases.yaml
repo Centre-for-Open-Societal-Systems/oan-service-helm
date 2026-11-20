@@ -1,0 +1,170 @@
+{{- if .Values.appDatabases }}
+{{- $pg := include "frappe.postgresAdmin" . | fromJson }}
+{{- $host := printf "%s.%s.svc.cluster.local" $pg.host .Release.Namespace }}
+{{- $names := list }}
+{{- range .Values.appDatabases }}
+{{- $name := required "appDatabases[].name is required" .name }}
+{{- $user := .user | default $name }}
+{{- if not (regexMatch "^[a-z_][a-z0-9_]{0,62}$" $name) }}
+{{- fail (printf "appDatabases[].name %q: use lower-case letters, digits and _ only" $name) }}
+{{- end }}
+{{- if not (regexMatch "^[a-z_][a-z0-9_]{0,62}$" $user) }}
+{{- fail (printf "appDatabases[].user %q: use lower-case letters, digits and _ only" $user) }}
+{{- end }}
+{{- if or (has $name (list "postgres" "template0" "template1")) (has $user (list "postgres" $pg.adminUser)) }}
+{{- fail (printf "appDatabases: %q / %q is a system database or the superuser" $name $user) }}
+{{- end }}
+{{- if has $name $names }}
+{{- fail (printf "appDatabases: %q is listed twice" $name) }}
+{{- end }}
+{{- $names = append $names $name }}
+{{- if not .existingSecret }}
+{{- /*
+The login of one app database. Created once with a random password and reused on upgrade; kept on uninstall, like
+the database itself. Copy it into the app's namespace, or put its values in the app's own secret values.
+*/}}
+{{- $secretName := include "frappe.appDatabaseSecret" (dict "root" $ "db" .) }}
+{{- $existing := lookup "v1" "Secret" $.Release.Namespace $secretName }}
+{{- $password := randAlphaNum 32 }}
+{{- if and $existing $existing.data (hasKey $existing.data "password") }}
+{{- $password = index $existing.data "password" | b64dec }}
+{{- end }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secretName }}
+  labels:
+    {{- include "frappe.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: app-database
+  annotations:
+    helm.sh/resource-policy: keep
+type: Opaque
+stringData:
+  host: {{ $host | quote }}
+  port: "5432"
+  database: {{ $name | quote }}
+  username: {{ $user | quote }}
+  password: {{ $password | quote }}
+  jdbc-url: {{ printf "jdbc:postgresql://%s:5432/%s" $host $name | quote }}
+---
+{{- end }}
+{{- end }}
+# Creates each app database and its login role, as the superuser. A missing role or database is created; an existing
+# role gets its password from the Secret again (so rotating the Secret and upgrading rotates the role); an existing
+# database is never dropped or re-owned. The role has LOGIN only and owns its database; CONNECT is revoked from PUBLIC,
+# so the other apps on this server cannot open it. Passwords reach psql through \getenv on stdin, never argv, and
+# statement logging is off for the session, so they stay out of the server log.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "frappe.fullname" . }}-app-databases
+  labels:
+    {{- include "frappe.labels" . | nindent 4 }}
+    app.kubernetes.io/component: app-databases
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "5"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: {{ .Values.appDatabasesJob.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: 604800
+  template:
+    metadata:
+      labels:
+        {{- include "frappe.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: app-databases
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+      containers:
+        - name: app-databases
+          image: {{ .Values.appDatabasesJob.image | default $pg.image | quote }}
+          env:
+            - {name: PGHOST, value: {{ $pg.host | quote }}}
+            - {name: PGPORT, value: "5432"}
+            - {name: PGUSER, value: {{ $pg.adminUser | quote }}}
+            - {name: PGDATABASE, value: postgres}
+            - {name: PGCONNECT_TIMEOUT, value: "10"}
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $pg.secret | quote }}
+                  key: {{ $pg.secretKey | quote }}
+            - {name: DB_COUNT, value: {{ len .Values.appDatabases | quote }}}
+            {{- range $i, $db := .Values.appDatabases }}
+            {{- $secretName := include "frappe.appDatabaseSecret" (dict "root" $ "db" $db) }}
+            - {name: DB_{{ $i }}_NAME, value: {{ $db.name | quote }}}
+            {{- if $db.existingSecret }}
+            - name: DB_{{ $i }}_USER
+              valueFrom:
+                secretKeyRef: {name: {{ $secretName | quote }}, key: {{ $db.userKey | default "username" | quote }}}
+            - name: DB_{{ $i }}_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: {{ $secretName | quote }}, key: {{ $db.passwordKey | default "password" | quote }}}
+            {{- else }}
+            - {name: DB_{{ $i }}_USER, value: {{ $db.user | default $db.name | quote }}}
+            - name: DB_{{ $i }}_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: {{ $secretName | quote }}, key: password}
+            {{- end }}
+            {{- end }}
+          command: ["bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              # On first install the database starts with this release; wait for it.
+              for _ in $(seq 1 60); do
+                psql -X -Atqc 'select 1' >/dev/null 2>&1 && break
+                echo "waiting for $PGHOST:$PGPORT"; sleep 5
+              done
+              for i in $(seq 0 $((DB_COUNT - 1))); do
+                name_var="DB_${i}_NAME"; user_var="DB_${i}_USER"; pass_var="DB_${i}_PASSWORD"
+                export DB="${!name_var}" APP_USER="${!user_var}" APP_PASSWORD="${!pass_var}"
+                if ! [[ "$APP_USER" =~ ^[a-z_][a-z0-9_]{0,62}$ ]] || [ "$APP_USER" = postgres ] || [ "$APP_USER" = "$PGUSER" ]; then
+                  echo "$DB: role '$APP_USER' is not a plain lower-case name or is the superuser; refusing" >&2; exit 1
+                fi
+                if [ -z "$APP_PASSWORD" ]; then echo "$DB: empty password for $APP_USER; refusing" >&2; exit 1; fi
+                psql -X -q -v ON_ERROR_STOP=1 <<'SQL'
+              SET log_statement = 'none';
+              SET pgaudit.log = 'none';
+              \getenv db DB
+              \getenv usr APP_USER
+              \getenv pw APP_PASSWORD
+              SELECT format('CREATE ROLE %I LOGIN', :'usr')
+                WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = :'usr') \gexec
+              SELECT format('ALTER ROLE %I WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD %L',
+                :'usr', :'pw') \gexec
+              SELECT format('CREATE DATABASE %I OWNER %I', :'db', :'usr')
+                WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = :'db') \gexec
+              SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'db') \gexec
+              SELECT format('GRANT ALL ON DATABASE %I TO %I', :'db', :'usr') \gexec
+              SQL
+                owner=$(psql -X -Atqc "select pg_get_userbyid(datdba) from pg_database where datname = '$DB'")
+                if [ "$owner" != "$APP_USER" ]; then
+                  echo "$DB: kept as it was; owned by $owner, not $APP_USER"
+                fi
+                if PGUSER="$APP_USER" PGPASSWORD="$APP_PASSWORD" PGDATABASE="$DB" psql -X -Atqc 'select 1' >/dev/null; then
+                  echo "$DB: ready, $APP_USER signs in"
+                else
+                  echo "$DB: $APP_USER cannot sign in" >&2; exit 1
+                fi
+              done
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          {{- with .Values.appDatabasesJob.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

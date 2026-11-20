@@ -50,3 +50,36 @@ Selector labels
 app.kubernetes.io/name: {{ include "frappe.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
+
+{{/*
+PostgreSQL connection for the appDatabases Job, as a dict: host, adminUser, secret, secretKey, image.
+The in-chart StatefulSet wins when both are enabled, as in NOTES.txt.
+*/}}
+{{- define "frappe.postgresAdmin" -}}
+{{- $sts := index .Values "postgresql-sts" }}
+{{- $sub := index .Values "postgresql-subchart" }}
+{{- $subEnabled := or (dig "postgresql" "enabled" false .Values.AsMap) $sub.enabled }}
+{{- if $sts.enabled }}
+{{- dict "host" (printf "%s-postgresql-sts" (include "frappe.fullname" .)) "adminUser" $sts.postgresUser "secret" (include "frappe.fullname" .) "secretKey" "postgres-password" "image" (printf "%s:%s" $sts.image.repository $sts.image.tag) | toJson }}
+{{- else if $subEnabled }}
+{{- $auth := $sub.auth | default dict }}
+{{- $secret := $auth.existingSecret | default (printf "%s-postgresql-subchart" .Release.Name) }}
+{{- $key := "postgres-password" }}
+{{- if $auth.existingSecret }}{{- $key = default "postgres-password" ($auth.secretKeys).adminPasswordKey }}{{- end }}
+{{- $img := $sub.image | default dict }}
+{{- dict "host" (printf "%s-postgresql-subchart" .Release.Name) "adminUser" "postgres" "secret" $secret "secretKey" $key "image" (printf "%s/%s:%s" ($img.registry | default "docker.io") $img.repository $img.tag) | toJson }}
+{{- else }}
+{{- fail "appDatabases needs PostgreSQL: enable postgresql-sts or postgresql-subchart" }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Secret holding an app database's login: <fullname>-app-<name with _ as ->, or the entry's existingSecret.
+*/}}
+{{- define "frappe.appDatabaseSecret" -}}
+{{- if .db.existingSecret -}}
+{{- .db.existingSecret -}}
+{{- else -}}
+{{- printf "%s-app-%s" (include "frappe.fullname" .root) (.db.name | replace "_" "-") | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}

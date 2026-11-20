@@ -101,3 +101,30 @@ postgresql-subchart:
 # (Helm uses the first condition key that is set, so this stays unset by default):
 # postgresql:
 #   enabled: true
+
+# -- Databases for applications that are not Frappe sites (Frappe's create-site job makes its own), on the
+# PostgreSQL of this release. A post-install/post-upgrade Job creates each database and a login role that owns it
+# (LOGIN only, CONNECT revoked from PUBLIC). Existing databases are never dropped or re-owned.
+# Without existingSecret the chart creates Secret <fullname>-app-<name, _ as -> (keys host, port, database,
+# username, password, jdbc-url) with a random password, reuses it on upgrade and keeps it on uninstall.
+appDatabases: []
+#  - name: leads_db
+#    # Role name; default: name.
+#    user: leads_api
+#  - name: lead_db
+#    # Or read the login from a Secret in this namespace instead of generating it:
+#    existingSecret: lead-db-login
+#    userKey: username
+#    passwordKey: password
+
+appDatabasesJob:
+  # -- psql image (15 or later). Empty: the image of the enabled PostgreSQL.
+  image: ""
+  # -- How long the Job waits for PostgreSQL and the Secrets before it fails.
+  activeDeadlineSeconds: 900
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
