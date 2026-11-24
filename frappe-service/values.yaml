@@ -598,9 +598,10 @@ podSecurityContext:
   supplementalGroups: [1000]
 
 securityContext:
+  allowPrivilegeEscalation: false
   capabilities:
-    add:
-    - CAP_CHOWN
+    drop:
+    - ALL
   # readOnlyRootFilesystem: true
   # runAsNonRoot: true
   # runAsUser: 1000
