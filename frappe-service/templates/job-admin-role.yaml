@@ -1,0 +1,95 @@
+{{- if .Values.adminRole.enabled }}
+{{/*
+Runs on every install and upgrade. Waits until create-site has installed the last app of
+jobs.createSite.installApps, then makes sure the central administrator role exists and holds
+exactly the listed rights on the listed doctypes. With these, a holder can call the admin API
+of oan_auth_service (users, roles, role permissions) without being System Manager.
+Safe to repeat: an existing role and rule are updated in place, not duplicated.
+The first rule on a doctype copies that doctype's standard rules into custom rules (Frappe's
+own behaviour), so later changes to its DocType JSON stop applying on migrate until reset.
+*/}}
+{{- $site := .Values.jobs.createSite.siteName }}
+{{- $lastApp := "frappe" }}
+{{- with .Values.jobs.createSite.installApps }}{{ $lastApp = last . }}{{ end }}
+{{- if not .Values.adminRole.permissions }}
+{{- fail "adminRole.permissions must list at least one doctype when adminRole.enabled is true" }}
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "frappe.fullname" . }}-admin-role-{{ now | date "20060102150405" }}
+  labels:
+    {{- include "frappe.labels" . | nindent 4 }}
+spec:
+  backoffLimit: {{ .Values.adminRole.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.adminRole.ttlSecondsAfterFinished }}
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ template "frappe.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: admin-role
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        workingDir: /home/frappe/frappe-bench/sites
+        command: ["bash", "-c"]
+        args:
+        - |
+          set -euo pipefail
+          until [ -f "$SITE_NAME/site_config.json" ] && (cd .. && bench --site "$SITE_NAME" list-apps 2>/dev/null) | grep -q '^{{ $lastApp }}'; do
+            echo "waiting for site $SITE_NAME"; sleep 10
+          done
+          /home/frappe/frappe-bench/env/bin/python - <<'PYEOF'
+          import json, os
+          import frappe
+          from frappe.permissions import add_permission, update_permission_property
+
+          RIGHTS = ("read", "write", "create", "delete")
+          role = os.environ["ADMIN_ROLE"]
+          permissions = json.loads(os.environ["ADMIN_ROLE_PERMISSIONS"])
+
+          frappe.init(site=os.environ["SITE_NAME"], sites_path=".")
+          frappe.connect()
+          frappe.set_user("Administrator")
+          if not frappe.db.exists("Role", role):
+              frappe.get_doc({"doctype": "Role", "role_name": role, "desk_access": 0}).insert(ignore_permissions=True)
+              print(f"role {role} created")
+          for doctype, granted in permissions.items():
+              add_permission(doctype, role, 0)
+              for right in RIGHTS:
+                  update_permission_property(doctype, role, 0, right, "1" if right in granted else "0")
+              frappe.clear_cache(doctype=doctype)
+              print(f"{role} on {doctype}: {', '.join(granted) or 'nothing'}")
+          frappe.db.commit()
+          frappe.destroy()
+          PYEOF
+        env:
+        - name: SITE_NAME
+          value: {{ $site | quote }}
+        - name: ADMIN_ROLE
+          value: {{ .Values.adminRole.role | quote }}
+        - name: ADMIN_ROLE_PERMISSIONS
+          value: {{ toJson .Values.adminRole.permissions | quote }}
+        {{- with .Values.adminRole.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        volumeMounts:
+        - name: sites-dir
+          mountPath: /home/frappe/frappe-bench/sites
+          {{- if .Values.persistence.worker.subPath }}
+          subPath: {{ .Values.persistence.worker.subPath | quote }}
+          {{- end }}
+      volumes:
+      - name: sites-dir
+        persistentVolumeClaim:
+          claimName: {{ default (include "frappe.fullname" .) .Values.persistence.worker.existingClaim }}
+{{- end }}

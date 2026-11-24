@@ -744,6 +744,22 @@ apiCredential:
   #     secretName: oan-grievance-ivr-frappe-credential
   #     secretKey: authorization   # default
 
+# Job that creates the central administrator role on the site, on every install and upgrade.
+# The role holds the listed rights on the listed doctypes, which is what the admin API of
+# oan_auth_service checks (users, roles, role permissions, user permissions). One role name in
+# every service lets a central tool, or a person, manage all of them without System Manager.
+adminRole:
+  enabled: false
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 86400
+  resources: {}
+  role: OAN Administrator
+  permissions:
+    User: [read, write, create, delete]
+    Role: [read, write, create, delete]
+    Custom DocPerm: [read, write, create, delete]
+    User Permission: [read, write, create, delete]
+
 siteConfig:
   enabled: false
   backoffLimit: 3

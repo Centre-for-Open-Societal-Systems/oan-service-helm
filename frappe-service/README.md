@@ -61,7 +61,7 @@ The following table lists the configurable parameters of the Frappe chart and th
 
 ### frappe-service
 
-![Version: 8.0.91-oan.3](https://img.shields.io/badge/Version-8.0.91--oan.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v16.54.0](https://img.shields.io/badge/AppVersion-v16.54.0-informational?style=flat-square)
+![Version: 8.0.91-oan.4](https://img.shields.io/badge/Version-8.0.91--oan.4-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v16.54.0](https://img.shields.io/badge/AppVersion-v16.54.0-informational?style=flat-square)
 
 Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 
@@ -80,6 +80,12 @@ Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| adminRole.backoffLimit | int | `6` |  |
+| adminRole.enabled | bool | `false` |  |
+| adminRole.permissions | object | `{"Custom DocPerm":["read","write","create","delete"],"Role":["read","write","create","delete"],"User":["read","write","create","delete"],"User Permission":["read","write","create","delete"]}` | Rights the role holds on each doctype. |
+| adminRole.resources | object | `{}` |  |
+| adminRole.role | string | `"OAN Administrator"` | Name of the central administrator role the job creates. |
+| adminRole.ttlSecondsAfterFinished | int | `86400` |  |
 | apiCredential.backoffLimit | int | `6` |  |
 | apiCredential.enabled | bool | `false` |  |
 | apiCredential.resources | object | `{}` |  |
