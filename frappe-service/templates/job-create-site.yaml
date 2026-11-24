@@ -102,7 +102,11 @@ spec:
 
             set -e;
 
-            rm -f currentsite.txt
+            rm -f currentsite.txt;
+
+            rm -f "/home/frappe/frappe-bench/sites/${SITE_NAME}"/.create-site-done-*;
+
+            touch "/home/frappe/frappe-bench/sites/${SITE_NAME}/.create-site-done-{{ .Release.Revision }}"
         env:
           - name: "SITE_NAME"
             value: "{{ .Values.jobs.createSite.siteName }}"

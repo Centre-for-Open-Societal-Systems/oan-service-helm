@@ -65,7 +65,14 @@ spec:
         - |
           set -euo pipefail
           # site_config.json exists from the start of `bench new-site`; the site is ready
-          # only once the last app is installed.
+          # only once the last app is installed. Both jobs start together, so on an upgrade the
+          # previous site passes that check before create-site drops it (forceCreate): wait first
+          # for the marker create-site writes when it finishes for this release revision.
+          {{- if .Values.jobs.createSite.enabled }}
+          until [ -f "$SITE_NAME/.create-site-done-{{ .Release.Revision }}" ]; do
+            echo "waiting for create-site of release revision {{ .Release.Revision }}"; sleep 10
+          done
+          {{- end }}
           until [ -f "$SITE_NAME/site_config.json" ] && (cd .. && bench --site "$SITE_NAME" list-apps 2>/dev/null) | grep -q '^{{ $lastApp }}'; do
             echo "waiting for site $SITE_NAME"; sleep 10
           done
