@@ -82,9 +82,24 @@ Kubernetes Helm Chart for Frappe and Frappe Framework Apps.
 |-----|------|---------|-------------|
 | adminRole.backoffLimit | int | `6` |  |
 | adminRole.enabled | bool | `false` |  |
-| adminRole.permissions | object | `{"Custom DocPerm":["read","write","create","delete"],"Role":["read","write","create","delete"],"User":["read","write","create","delete"],"User Permission":["read","write","create","delete"]}` | Rights the role holds on each doctype. |
+| adminRole.permissions."Custom DocPerm"[0] | string | `"read"` |  |
+| adminRole.permissions."Custom DocPerm"[1] | string | `"write"` |  |
+| adminRole.permissions."Custom DocPerm"[2] | string | `"create"` |  |
+| adminRole.permissions."Custom DocPerm"[3] | string | `"delete"` |  |
+| adminRole.permissions."User Permission"[0] | string | `"read"` |  |
+| adminRole.permissions."User Permission"[1] | string | `"write"` |  |
+| adminRole.permissions."User Permission"[2] | string | `"create"` |  |
+| adminRole.permissions."User Permission"[3] | string | `"delete"` |  |
+| adminRole.permissions.Role[0] | string | `"read"` |  |
+| adminRole.permissions.Role[1] | string | `"write"` |  |
+| adminRole.permissions.Role[2] | string | `"create"` |  |
+| adminRole.permissions.Role[3] | string | `"delete"` |  |
+| adminRole.permissions.User[0] | string | `"read"` |  |
+| adminRole.permissions.User[1] | string | `"write"` |  |
+| adminRole.permissions.User[2] | string | `"create"` |  |
+| adminRole.permissions.User[3] | string | `"delete"` |  |
 | adminRole.resources | object | `{}` |  |
-| adminRole.role | string | `"OAN Administrator"` | Name of the central administrator role the job creates. |
+| adminRole.role | string | `"OAN Administrator"` |  |
 | adminRole.ttlSecondsAfterFinished | int | `86400` |  |
 | apiCredential.backoffLimit | int | `6` |  |
 | apiCredential.enabled | bool | `false` |  |
