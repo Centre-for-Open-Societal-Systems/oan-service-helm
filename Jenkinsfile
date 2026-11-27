@@ -54,7 +54,7 @@ pipeline {
           set -euo pipefail
           for chart in $CHARTS; do
             # helm dependency build refuses a repository it does not know by URL.
-            grep -hE '^ *repository: *"?http' "$chart/Chart.yaml" | sed -E 's/^ *repository: *"?([^"]*)"?.*/\\1/' | sort -u |
+            (grep -hE '^ *repository: *"?http' "$chart/Chart.yaml" || true) | sed -E 's/^ *repository: *"?([^"]*)"?.*/\\1/' | sort -u |
               while read -r url; do helm repo add "r-$(echo "$url" | md5sum | cut -c1-8)" "$url" > /dev/null; done
             helm dependency build "$chart"
             helm lint "$chart"
