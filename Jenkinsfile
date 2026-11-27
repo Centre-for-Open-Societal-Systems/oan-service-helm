@@ -50,7 +50,7 @@ pipeline {
     stage('Lint') {
       when { expression { env.CHARTS } }
       steps {
-        sh '''
+        sh '''#!/usr/bin/env bash
           set -euo pipefail
           for chart in $CHARTS; do
             # helm dependency build refuses a repository it does not know by URL.
@@ -66,7 +66,7 @@ pipeline {
     stage('Package') {
       when { allOf { branch 'main'; expression { env.CHARTS } } }
       steps {
-        sh '''
+        sh '''#!/usr/bin/env bash
           set -euo pipefail
           rm -rf dist && mkdir -p dist
           for chart in $CHARTS; do
@@ -83,7 +83,7 @@ pipeline {
       steps {
         unstash 'dist'
         withCredentials([usernamePassword(credentialsId: 'oan-helm-fork-token', usernameVariable: 'GH_USER', passwordVariable: 'GH_TOKEN')]) {
-          sh '''
+          sh '''#!/usr/bin/env bash
             set -euo pipefail
             work="$(mktemp -d)"
             trap 'rm -rf "$work"' EXIT
